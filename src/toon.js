@@ -69,7 +69,7 @@ const DEFAULTS = {
 const done = new Set();
 
 function toonifyOne(mat, p) {
-  if (!mat || done.has(mat) || !LIT.has(mat.type)) return;
+  if (!mat || done.has(mat) || mat.userData?.skipToon || !LIT.has(mat.type)) return;
   done.add(mat);
   // Leaves are translucent: a leaf with the sun behind it glows rather than
   // going black, and the inner wall of a pierced crown is exactly that case —

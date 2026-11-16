@@ -996,61 +996,105 @@ export function makeFoamStreakTexture() {
   return toTexture(c);
 }
 
-// Sunlit sandy streambed strewn with pale pebbles — what you see THROUGH the
-// clear water, so it's kept warm and bright like the reference footage.
+// Painterly river-cobble streambed: cool slate, mossy olive, and warm ochre
+// rounded stones with soft crevices and top-lights, seen through shallow water.
 export function makeBedTexture() {
-  const S = 256;
+  const S = 512;
   const c = canvas(S, S);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#8f8468';
+  ctx.fillStyle = '#4e594d';
   ctx.fillRect(0, 0, S, S);
-  const tones = ['#a99d7f', '#7c745c', '#b5ab8e', '#94886a', '#6f6852'];
-  for (let i = 0; i < 650; i++) {
+
+  // broad soft washes of mossy green, river slate, and warm sand
+  const washes = ['#3f514b', '#5d654d', '#68624d', '#445750', '#586448'];
+  for (let i = 0; i < 90; i++) {
+    ctx.fillStyle = washes[(Math.random() * washes.length) | 0];
+    ctx.globalAlpha = 0.22 + Math.random() * 0.2;
+    ctx.beginPath();
+    ctx.arc(Math.random() * S, Math.random() * S, 18 + Math.random() * 44, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // rounded river cobbles with soft underside shadow + warm sunlit cap
+  const tones = ['#7d7963', '#5c695e', '#8e866c', '#657058', '#998f73', '#4e5d58', '#737b63'];
+  for (let i = 0; i < 1100; i++) {
     const x = Math.random() * S;
     const y = Math.random() * S;
-    const r = 2 + Math.random() * 7;
-    ctx.globalAlpha = 0.5 + Math.random() * 0.5;
-    ctx.fillStyle = tones[(Math.random() * tones.length) | 0];
-    ctx.beginPath();
-    ctx.ellipse(x, y, r, r * (0.6 + Math.random() * 0.4), Math.random() * Math.PI, 0, Math.PI * 2);
-    ctx.fill();
-    // pebble top-light
-    ctx.globalAlpha *= 0.45;
-    ctx.fillStyle = '#cfc5a8';
-    ctx.beginPath();
-    ctx.ellipse(x - r * 0.2, y - r * 0.25, r * 0.45, r * 0.3, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const r = 3 + Math.pow(Math.random(), 1.5) * 13;
+    const ry = r * (0.62 + Math.random() * 0.34);
+    const rot = Math.random() * Math.PI;
+    const col = tones[(Math.random() * tones.length) | 0];
+
+    const xs = x < 20 ? [0, S] : x > S - 20 ? [0, -S] : [0];
+    const ys = y < 20 ? [0, S] : y > S - 20 ? [0, -S] : [0];
+    for (const ox of xs) {
+      for (const oy of ys) {
+        const px = x + ox, py = y + oy;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(rot);
+
+        ctx.globalAlpha = 0.36;
+        ctx.fillStyle = '#222d2a';
+        ctx.beginPath();
+        ctx.ellipse(1.2, 1.8, r * 1.04, ry * 1.04, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = 0.78 + Math.random() * 0.22;
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = 0.38;
+        ctx.fillStyle = '#c9c2a6';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.22, -ry * 0.24, r * 0.52, ry * 0.38, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
   }
   ctx.globalAlpha = 1;
   return toTexture(c, { repeat: true });
 }
 
+// Smooth painterly stone texture: broad warm-limestone and cool-taupe washes
+// instead of noisy grain, so rounded boulders shade cleanly in cel lighting.
 export function makeRockTexture() {
-  const S = 128;
+  const S = 256;
   const c = canvas(S, S);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#9a9488';
+  ctx.fillStyle = '#aea594';
   ctx.fillRect(0, 0, S, S);
-  const tones = ['#6e695e', '#b3aea1', '#847e70', '#a49e8f'];
-  for (let i = 0; i < 900; i++) {
+
+  const tones = ['#c2b9a6', '#9a9180', '#ccc3ae', '#8c8475', '#b7ae9c'];
+  for (let i = 0; i < 220; i++) {
     ctx.fillStyle = tones[(Math.random() * tones.length) | 0];
-    ctx.globalAlpha = 0.1 + Math.random() * 0.22;
-    const r = 1 + Math.random() * 5;
+    ctx.globalAlpha = 0.14 + Math.random() * 0.2;
+    const rx = 10 + Math.random() * 32;
+    const ry = rx * (0.45 + Math.random() * 0.45);
+    ctx.save();
+    ctx.translate(Math.random() * S, Math.random() * S);
+    ctx.rotate(Math.random() * Math.PI);
     ctx.beginPath();
-    ctx.arc(Math.random() * S, Math.random() * S, r, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
-  // a few hairline cracks
-  for (let i = 0; i < 6; i++) {
-    ctx.strokeStyle = 'rgba(50,46,40,0.35)';
-    ctx.lineWidth = 1;
+
+  // soft painterly stone strata creases
+  for (let i = 0; i < 8; i++) {
+    ctx.strokeStyle = 'rgba(68, 62, 52, 0.20)';
+    ctx.lineWidth = 1.4 + Math.random() * 1.4;
+    ctx.lineCap = 'round';
     ctx.beginPath();
     let x = Math.random() * S, y = Math.random() * S;
     ctx.moveTo(x, y);
-    for (let k = 0; k < 5; k++) {
-      x += (Math.random() - 0.5) * 30;
-      y += (Math.random() - 0.5) * 30;
+    for (let k = 0; k < 4; k++) {
+      x += 18 + Math.random() * 28;
+      y += (Math.random() - 0.5) * 18;
       ctx.lineTo(x, y);
     }
     ctx.stroke();

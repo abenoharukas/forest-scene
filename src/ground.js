@@ -5,8 +5,8 @@ import { makeGroundTexture } from './textures.js';
 import { CELL } from './streaming.js';
 
 // Smooth-shaded valley ground with a tiled mottled-meadow texture. Vertex
-// colors tint it: sandy at the waterline, dark soil in the channel, gently
-// varied green elsewhere (the instanced grass supplies most of the detail).
+// colors tint it: wet river-moss under water, mossy edge at the shoreline,
+// gently varied green elsewhere (the instanced grass supplies most of the detail).
 //
 // Built one cell at a time as the camera moves. The ground has to reach the
 // horizon, and carrying the near field's vertex density that far would cost
@@ -42,8 +42,9 @@ const meadowGround = (x, z, out) => {
   return out;
 };
 const tmp = new THREE.Color();
-const shore = new THREE.Color('#7d7452');
-const bed = new THREE.Color('#8a7f63'); // sunlit sandy bed — shows through the clear water
+const wetBed = new THREE.Color('#2b4540'); // deep wet river-moss/slate under water
+const wetShore = new THREE.Color('#485b34'); // damp mossy bank rim at the waterline
+const mossBank = new THREE.Color('#546c2e'); // lush mossy grass transition on the bank
 
 // Vertex density by distance from the CAMERA, not from the world origin. The
 // original ground was 220 segments over 300 units — 1.36 per vertex — and the
@@ -117,11 +118,15 @@ function buildTile(scene, mat, cell, seg) {
     const { d: sd, t } = streamAt(x, z);
     const lvl = levelAt(t);
     const hw = halfWidthAt(t);
-    if (h < lvl + 0.15) {
-      c.copy(bed);
-    } else if (sd < hw + 3.5) {
-      const k = (sd - hw) / 3.5;
-      c.copy(shore).lerp(meadowGround(x, z, tmp), THREE.MathUtils.clamp(k, 0, 1));
+    const dy = h - (lvl - 0.08);
+    if (dy < -0.18) {
+      c.copy(wetBed);
+    } else if (dy < 0.26) {
+      const k = THREE.MathUtils.smoothstep(dy, -0.18, 0.26);
+      c.copy(wetBed).lerp(wetShore, k);
+    } else if (sd < hw + 1.8) {
+      const k = THREE.MathUtils.clamp((sd - hw) / 1.8, 0, 1);
+      c.copy(mossBank).lerp(meadowGround(x, z, tmp), k * k * (3 - 2 * k));
     } else {
       meadowGround(x, z, c);
     }
