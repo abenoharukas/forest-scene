@@ -218,14 +218,14 @@ export function cascadeAt(t) {
 // surface steps down at a drop, so a basin straddling one would be sliced into
 // two levels — which submerges the trees along the lower half of its bank.
 const ORIGINAL_POOLS = [
-  { t: 0.05, w: 4.5, s: 0.026 },
-  { t: 0.16, w: 8.0, s: 0.028 },
-  { t: 0.26, w: 3.5, s: 0.020 },
-  { t: 0.42, w: 20.0, s: 0.060 }, // the lake, inside the flat reach
-  { t: 0.58, w: 5.5, s: 0.024 },
-  { t: 0.70, w: 12.0, s: 0.032 },
-  { t: 0.82, w: 3.5, s: 0.022 },
-  { t: 0.94, w: 7.0, s: 0.028 },
+  { t: 0.05, w: 2.1, s: 0.026 },
+  { t: 0.16, w: 3.2, s: 0.028 },
+  { t: 0.26, w: 1.7, s: 0.020 },
+  { t: 0.42, w: 4.2, s: 0.052 }, // gentle wider brook pool in the opening view
+  { t: 0.58, w: 2.3, s: 0.024 },
+  { t: 0.70, w: 3.5, s: 0.032 },
+  { t: 0.82, w: 1.8, s: 0.022 },
+  { t: 0.94, w: 2.9, s: 0.028 },
 ];
 
 // Every authored pool sits at the MIDPOINT of its drop pair — that is what keeps
@@ -259,8 +259,8 @@ const POOLS = (() => {
   return list.sort((a, b) => a.u - b.u);
 })();
 
-const NECK = 1.9; // half-width of the chutes between pools
-const OPEN = 8.0; // wider than this and the water reads as open, not a chute
+const NECK = 1.8; // half-width of the chutes between pools
+const OPEN = 5.4; // wider than this and the brook reads as a calm pool, not a chute
 // The bank wobble was authored as sin(t*23) on the original curve, i.e. one cycle
 // every ~14 units. Expressed per unit so it keeps that wavelength once the curve
 // is 3.2x longer, instead of stretching into 23 cycles over the whole world.

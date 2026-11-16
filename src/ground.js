@@ -5,29 +5,14 @@ import { makeGroundTexture } from './textures.js';
 import { CELL } from './streaming.js';
 
 // Smooth-shaded valley ground with a tiled mottled-meadow texture. Vertex
-// colors tint it: wet river-moss under water, mossy edge at the shoreline,
-// gently varied green elsewhere (the instanced grass supplies most of the detail).
-//
-// Built one cell at a time as the camera moves. The ground has to reach the
-// horizon, and carrying the near field's vertex density that far would cost
-// ~870k triangles; instead the segment count drops by distance ring, so the far
-// tiles are cheap while the ground underfoot keeps every fold it had.
+// colors tint it: warm wet gravel/moss in the shallow channel, lush mossy grass
+// right down to the water's edge, gently varied meadow green elsewhere.
 
-// The meadow's colour field, shared with grass.js. Each grass tuft takes its root
-// colour from the ground under it, so the soil showing between blades reads as
-// more grass rather than as a dark sheet behind it — the trick that makes BotW /
-// Genshin meadows look dense without actually being solid grass.
 const meadowDeep = new THREE.Color('#4f6e22');
 const meadowSun = new THREE.Color('#93ad3e');
-// How dark a blade's root is relative to its tuft colour (grass.js bakes this
-// into the blade vertices).
 export const GRASS_ROOT = 0.55;
-// The ground texture multiplies the vertex colour, so its mean is divided back
-// out to land the rendered ground on exactly the grass root colour.
 const TEX_MEAN = new THREE.Color('#5a682f');
 
-// Two scales of patch: the old fine undulation, plus broad drifts tens of metres
-// across, so the meadow has the large warm/cool swathes of the reference games.
 export function meadowColor(x, z, out) {
   const n = 0.5 + 0.5 * Math.sin(x * 0.11 + z * 0.07) * Math.cos(x * 0.05 - z * 0.13);
   const m = 0.5 + 0.5 * Math.sin(x * 0.023 - z * 0.031 + 1.7);
@@ -42,16 +27,11 @@ const meadowGround = (x, z, out) => {
   return out;
 };
 const tmp = new THREE.Color();
-const wetBed = new THREE.Color('#2b4540'); // deep wet river-moss/slate under water
-const wetShore = new THREE.Color('#485b34'); // damp mossy bank rim at the waterline
-const mossBank = new THREE.Color('#546c2e'); // lush mossy grass transition on the bank
+// Warm olive-grey wet gravel & mossy earth — ZERO blue tint!
+const wetGravel = new THREE.Color('#585d48');
+const wetMoss = new THREE.Color('#526434');
+const lushBank = new THREE.Color('#59702f');
 
-// Vertex density by distance from the CAMERA, not from the world origin. The
-// original ground was 220 segments over 300 units — 1.36 per vertex — and the
-// near ring keeps exactly that, so the terrain underfoot has every fold it had.
-// Beyond ~250 units a fold is a couple of pixels wide, so the count drops off:
-// carrying near-field density to the horizon would cost ~870k triangles of
-// ground alone.
 const LOD_STEPS = [
   { within: 250, segments: 74 },
   { within: 450, segments: 36 },
@@ -60,14 +40,10 @@ const LOD_STEPS = [
 
 const segmentsFor = (dist) => LOD_STEPS.find((s) => dist <= s.within).segments;
 
-// Tiles overlap by a hair so no seam pixel can show background between them: two
-// tiles that merely touch still leave a visible crack under a moving camera.
 const OVERLAP = 0.06;
 
 export function createGroundLayer(scene, { radius }) {
   const tex = makeGroundTexture();
-  // Repeat per world unit, matching the original 48 repeats over 300 units, so
-  // the texture scale is identical whatever a tile's size or segment count is.
   const perUnit = 48 / 300;
   tex.repeat.set(CELL * perUnit, CELL * perUnit);
   const mat = new THREE.MeshStandardMaterial({
@@ -88,8 +64,6 @@ export function createGroundLayer(scene, { radius }) {
       },
       dispose(mesh) {
         scene.remove(mesh);
-        // Each tile has its own geometry (its vertices are displaced by the
-        // terrain under it), so unlike the shared material it must be released.
         mesh.geometry.dispose();
       },
     },
@@ -106,8 +80,6 @@ function buildTile(scene, mat, cell, seg) {
   const c = new THREE.Color();
 
   for (let i = 0; i < pos.count; i++) {
-    // PlaneGeometry is centred on the origin; offset into world space so the
-    // terrain function sees this tile's actual position.
     const x = pos.getX(i) + cell.cx;
     const z = pos.getZ(i) + cell.cz;
     const h = terrainHeight(x, z);
@@ -118,21 +90,19 @@ function buildTile(scene, mat, cell, seg) {
     const { d: sd, t } = streamAt(x, z);
     const lvl = levelAt(t);
     const hw = halfWidthAt(t);
-    const dy = h - (lvl - 0.08);
-    if (dy < -0.18) {
-      c.copy(wetBed);
-    } else if (dy < 0.26) {
-      const k = THREE.MathUtils.smoothstep(dy, -0.18, 0.26);
-      c.copy(wetBed).lerp(wetShore, k);
-    } else if (sd < hw + 1.8) {
-      const k = THREE.MathUtils.clamp((sd - hw) / 1.8, 0, 1);
-      c.copy(mossBank).lerp(meadowGround(x, z, tmp), k * k * (3 - 2 * k));
+    const dy = h - (lvl - 0.06);
+    if (dy < -0.08) {
+      c.copy(wetGravel);
+    } else if (dy < 0.22) {
+      const k = THREE.MathUtils.smoothstep(dy, -0.08, 0.22);
+      c.copy(wetGravel).lerp(wetMoss, k);
+    } else if (sd < hw + 1.5) {
+      const k = THREE.MathUtils.clamp((sd - hw) / 1.5, 0, 1);
+      c.copy(lushBank).lerp(meadowGround(x, z, tmp), k * k * (3 - 2 * k));
     } else {
       meadowGround(x, z, c);
     }
-    // Per-vertex brightness jitter. Derived from position rather than drawn from
-    // the RNG: adjacent tiles share an edge, and two different random values
-    // there would light the seam differently and draw a line across the meadow.
+
     const v = 0.92 + 0.16 * hashNoise(x, z);
     colors[i * 3] = c.r * v;
     colors[i * 3 + 1] = c.g * v;
@@ -148,9 +118,6 @@ function buildTile(scene, mat, cell, seg) {
   return mesh;
 }
 
-// Deterministic per-position value in 0..1. Quantised to the finest vertex
-// spacing so a shared edge gets the same value from either tile even when the
-// two tiles have different segment counts.
 function hashNoise(x, z) {
   const q = 0.01;
   const xi = Math.round(x / q) | 0;
