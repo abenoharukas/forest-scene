@@ -59,7 +59,7 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 16
 const camP = streamCurve.getPointAt(HOME_T);
 const lookP = streamCurve.getPointAt(LOOK_T);
 const LOOK = new THREE.Vector3(lookP.x, levelAt(LOOK_T) + 0.5, lookP.z);
-camera.position.set(camP.x - 2, levelAt(HOME_T) + 7.0, camP.z + 8);
+camera.position.set(camP.x - 5.5, levelAt(HOME_T) + 11.6, camP.z + 23.5);
 camera.lookAt(LOOK);
 
 // ---- world (fog / lights / sky) ----
@@ -73,7 +73,7 @@ const RADIUS = {
   ground: 700,
   grass: 150,
   foliage: 220,
-  treesNear: 260,
+  treesNear: 320,
   treesFar: 700,
 };
 

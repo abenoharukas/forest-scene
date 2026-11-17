@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { applyWind, keepAuthoredNormals } from './wind.js';
 import { cellSeed, withSeed } from './rng.js';
-import { terrainHeight } from './terrain.js';
+import { terrainHeight, woodlandDensity } from './terrain.js';
 import {
   streamCurve, streamAt, levelAt, halfWidthAt, inWater,
   STREAM_LENGTH, tOfArc,
@@ -69,7 +69,7 @@ export function createFoliage(scene) {
     const bl = Math.hypot(bx, bz) || 1;
     const hw = halfWidthAt(t);
     const lvl = levelAt(t);
-    for (let off = hw; off < hw + 9; off += 0.4) {
+    for (let off = hw; off < hw + 15.0; off += 0.4) {
       const x = p.x + (bx / bl) * off * side;
       const z = p.z + (bz / bl) * off * side;
       if (terrainHeight(x, z) > lvl + 0.12) {
@@ -278,7 +278,11 @@ export function createFoliage(scene) {
         const x = x0 + Math.random() * size;
         const z = z0 + Math.random() * size;
         const { d: sd, t } = streamAt(x, z);
-        if (Math.random() > THREE.MathUtils.clamp(1.5 - sd / 55, 0.05, 1)) continue;
+        const bankDist = Math.max(0, sd - halfWidthAt(t));
+        // Wildflowers thrive along the brook AND across sunlit sparser woodland glades
+        const glade = THREE.MathUtils.clamp(1.36 - woodlandDensity(x, z) * 0.70, 0.28, 1.0);
+        const keep = Math.max(THREE.MathUtils.clamp(1.45 - bankDist / 52, 0, 1), 0.24 + 0.50 * glade);
+        if (Math.random() > keep) continue;
         const h = terrainHeight(x, z);
         if (h < levelAt(t) + 0.35) continue;
         if (inWater(x, z, 0.3)) continue;
@@ -346,10 +350,16 @@ export function createFoliage(scene) {
         const x = x0 + Math.random() * size;
         const z = z0 + Math.random() * size;
         const { d: sd, t } = streamAt(x, z);
-        if (sd > 90) continue;
+        const bankDist = sd - halfWidthAt(t);
+        if (bankDist < 1.0) continue;
+        // Bushes grow across the whole map, richer inside groves and near the valley
+        const bushKeep = bankDist < 65
+          ? 1.0
+          : THREE.MathUtils.clamp(0.30 + 0.52 * woodlandDensity(x, z), 0.34, 0.92);
+        if (Math.random() > bushKeep) continue;
         const h = terrainHeight(x, z);
         if (h < levelAt(t) + 0.4) continue;
-        if (inWater(x, z, 0.8)) continue;
+        if (inWater(x, z, 0.9)) continue;
         spots.push({ x, z, h, s: 0.6 + Math.random() * 0.9 });
       }
       if (!spots.length) return;

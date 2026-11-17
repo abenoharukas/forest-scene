@@ -26,9 +26,10 @@ const perLength = (authored) => Math.round(authored * LENGTH_RATIO);
 
 const SUN_DIR = new THREE.Vector3(60, 92, -120).normalize();
 
-// Shallow mountain brook profile (0.18m at banks -> 0.72m in deepest middle)
-function bedDepth(cross) {
-  return 0.18 + 0.54 * (1 - cross * cross);
+// Shallow mountain brook profile (0.20m at banks -> ~0.70m in chutes, ~0.92m in wide 50m pools)
+function bedDepth(cross, hw = 12.0) {
+  const centerExtra = 0.50 + 0.22 * THREE.MathUtils.clamp((hw - 6.0) / 16.0, 0, 1);
+  return 0.20 + centerExtra * (1 - cross * cross);
 }
 
 function plungeInfoAt(t) {
@@ -204,7 +205,7 @@ export function createStream() {
       const bl = Math.hypot(bx, bz) || 1;
       const wy = waterSurfaceAt(tc);
       const hw = halfWidthAt(tc);
-      for (let off = Math.max(1.0, hw - 1.6); off < hw + 4.8; off += 0.25) {
+      for (let off = Math.max(2.0, hw - 2.6); off < hw + 7.4; off += 0.3) {
         const x = p.x + (bx / bl) * off * side;
         const z = p.z + (bz / bl) * off * side;
         if (terrainHeight(x, z) >= wy - 0.02) {
@@ -214,51 +215,52 @@ export function createStream() {
       return null;
     };
 
-    // ---- 1. Hand-placed hero boulders in the opening brook view ----
+    // ---- 1. Hand-placed hero boulders framing the 2x wider variable-width opening reach ----
     {
       const hero = [
-        { t: originalT(0.395), lat: 3.6, s: 1.45 },  // foreground right bank boulder (like sample.mp4!)
-        { t: originalT(0.415), lat: -1.4, s: 1.05 }, // mid-brook stepping boulder
-        { t: originalT(0.432), lat: 2.3, s: 1.30 },  // right-edge boulder catching current
-        { t: originalT(0.448), lat: -2.8, s: 1.35 }, // left-bank mossy boulder
-        { t: originalT(0.468), lat: 0.7, s: 0.85 },  // upstream mid-brook stone
+        { t: originalT(0.382), lat: 13.5, s: 1.85 }, // foreground right-bank anchor boulder
+        { t: originalT(0.402), lat: -10.8, s: 1.45 }, // shallow left-margin boulder in wide pool
+        { t: originalT(0.422), lat: 11.8, s: 1.55 }, // right pool-margin boulder catching ripples
+        { t: originalT(0.452), lat: -14.2, s: 1.70 }, // mossy bank boulder along wide basin
+        { t: originalT(0.488), lat: 6.2, s: 1.35 },  // throat stone where wide pool narrows toward fall
+        { t: originalT(0.555), lat: -4.2, s: 1.25 }, // mid-riffle stone in upper run
       ];
       hero.forEach((hr, i) => {
         const { x, z } = lateral(hr.t, hr.lat);
         const wy = waterSurfaceAt(hr.t);
         const minGround = minGroundAround(x, z, hr.s);
-        const y = Math.max(minGround, wy - 0.42) + hr.s * 0.14;
+        const y = Math.max(minGround, wy - 0.48) + hr.s * 0.14;
         const sy = addBoulder(i % 3, x, z, y, hr.s, wy, { checkOverlap: false });
-        if (Math.abs(hr.lat) < halfWidthAt(hr.t) + 0.5 && sy > 0) {
-          addRing(x, z, hr.t, hr.s * 1.4);
+        if (Math.abs(hr.lat) < halfWidthAt(hr.t) + 0.8 && sy > 0) {
+          addRing(x, z, hr.t, hr.s * 1.45);
         }
       });
     }
 
-    // ---- 2. Stone sills across every cascade lip ----
+    // ---- 2. Stone sills across every cascade lip (scaled to local chute width) ----
     {
-      const perDrop = 6;
-      const SILL_JITTER = tSpan(1.1);
+      const SILL_JITTER = tSpan(1.15);
       for (const d of DROPS) {
         const tLip = tOfArc(d.u + DROP_LEN * 0.35);
         const hw = halfWidthAt(tLip);
+        const perDrop = Math.max(10, Math.round(hw * 1.6));
         const tFoot = tOfArc(d.u + DROP_LEN * 0.82);
         const wy = waterSurfaceAt(tLip);
         for (let k = 0; k < perDrop; k++) {
-          const lat = ((k + 0.5) / perDrop - 0.5) * 2 * (hw * 0.92) + (Math.random() - 0.5) * 0.8;
+          const lat = ((k + 0.5) / perDrop - 0.5) * 2 * (hw * 0.94) + (Math.random() - 0.5) * 1.0;
           const tt = THREE.MathUtils.clamp(tLip + (Math.random() - 0.5) * SILL_JITTER, 0, 1);
           const { x, z } = lateral(tt, lat);
-          const s = 0.65 + Math.random() * 0.85;
+          const s = 0.78 + Math.random() * 1.05;
           const vIdx = (k + ((Math.random() * 3) | 0)) % 3;
-          const sy = addBoulder(vIdx, x, z, wy - 0.30 + s * 0.22, s, wy, { overlapK: 0.62 });
-          if (sy > 0) addRing(x, z, tFoot, s * 1.3);
+          const sy = addBoulder(vIdx, x, z, wy - 0.34 + s * 0.22, s, wy, { overlapK: 0.62 });
+          if (sy > 0) addRing(x, z, tFoot, s * 1.38);
         }
       }
     }
 
     // ---- 3. Natural shoreline boulder & cobble clusters hugging both banks ----
     {
-      const CLUSTERS = perLength(95);
+      const CLUSTERS = perLength(175);
       for (let c = 0; c < CLUSTERS; c++) {
         const tt = Math.random();
         const side = Math.random() < 0.5 ? 1 : -1;
@@ -266,37 +268,41 @@ export function createStream() {
         if (!shore) continue;
         const count = 2 + ((Math.random() * 3) | 0);
         for (let k = 0; k < count; k++) {
-          const tk = THREE.MathUtils.clamp(tt + tSpan((Math.random() - 0.5) * 3.8), 0, 1);
+          const tk = THREE.MathUtils.clamp(tt + tSpan((Math.random() - 0.5) * 4.6), 0, 1);
           const sh = k === 0 ? shore : findShoreline(tk, side);
           if (!sh) continue;
-          const inOut = (Math.random() - 0.45) * 1.25;
+          const inOut = (Math.random() - 0.45) * 1.65;
           const { x, z } = lateral(tk, (sh.off + inOut) * side);
-          const s = k === 0 ? 0.65 + Math.random() * 0.85 : 0.32 + Math.random() * 0.52;
+          const s = k === 0 ? 0.78 + Math.random() * 1.05 : 0.38 + Math.random() * 0.62;
           const wy = waterSurfaceAt(tk);
-          // Firmly sink into the lowest edge of sloped banks so stones NEVER float!
           const minG = minGroundAround(x, z, s);
-          const y = Math.max(minG + s * 0.12, wy - 0.45 + s * 0.20);
+          const y = Math.max(minG + s * 0.12, wy - 0.50 + s * 0.20);
           const sy = addBoulder((c + k) % 3, x, z, y, s, wy, { flat: Math.random() < 0.6, overlapK: 0.82 });
           if (sy > 0 && inOut < -0.1 && y + sy > wy + 0.04 && y - sy < wy) {
-            addRing(x, z, tk, s * 1.25);
+            addRing(x, z, tk, s * 1.30);
           }
         }
       }
     }
 
-    // ---- 4. Emergent mid-brook stepping stones + grassy bank boulders ----
+    // ---- 4. Emergent mid-brook stepping stones (denser in narrow runs, shallower margins in wide pools) ----
     {
-      const streamStones = perLength(68);
+      const streamStones = perLength(175);
       for (let i = 0; i < streamStones; i++) {
         const tt = Math.random();
         const hw = halfWidthAt(tt);
-        const lat = (Math.random() - 0.5) * 2 * Math.max(0.8, hw - 0.6);
+        const narrow = narrownessAt(tt);
+        const side = Math.random() < 0.5 ? 1 : -1;
+        // In wide pools, favour outer gravel bars so the middle stays an open clear mirror;
+        // in narrow runs, scatter stepping stones across the whole rocky chute.
+        const uRad = narrow > 0.45 ? Math.random() : 0.35 + 0.65 * Math.random();
+        const lat = side * uRad * Math.max(0.9, hw - 0.7);
         const { x, z } = lateral(tt, lat);
-        const s = 0.30 + Math.random() * 0.68;
+        const s = 0.34 + Math.random() * 0.76;
         const wy = waterSurfaceAt(tt);
         const cross = Math.min(1, Math.abs(lat) / (hw + 1.0));
-        const bedY = levelAt(tt) - bedDepth(cross);
-        const y = bedY + s * 0.34;
+        const bedY = levelAt(tt) - bedDepth(cross, hw);
+        const y = bedY + s * 0.36;
         const sy = addBoulder(i % 3, x, z, y, s, wy, { flat: true, overlapK: 0.85 });
         if (sy > 0 && y + sy * 0.85 > wy + 0.03 && y - sy < wy) {
           addRing(x, z, tt, s * 1.35);
@@ -510,7 +516,7 @@ function makePainterlyBoulderMaterial(rockTex) {
 // Submerged river cobbles scattered across the gravel bed: clear warm-olive &
 // buff tones with soft sunlit water-ripple shimmer (zero blue tint!).
 function buildSubmergedPebbles(baseGeo, rockTex, uniforms, lateral) {
-  const COUNT = perLength(520);
+  const COUNT = perLength(1900);
   const geo = baseGeo.clone();
   const depthArr = new Float32Array(COUNT);
 
@@ -598,7 +604,7 @@ function buildSubmergedPebbles(baseGeo, rockTex, uniforms, lateral) {
     const { x, z } = lateral(tt, lat);
     const s = 0.12 + Math.random() * 0.34;
     const cross = Math.min(1, Math.abs(lat) / (hw + 1.0));
-    const y = levelAt(tt) - bedDepth(cross) + s * 0.22;
+    const y = levelAt(tt) - bedDepth(cross, hw) + s * 0.22;
     const wy = waterSurfaceAt(tt);
 
     dummy.position.set(x, y, z);
@@ -627,7 +633,7 @@ function buildSubmergedPebbles(baseGeo, rockTex, uniforms, lateral) {
 // pebbles visibly shimmer beneath the clear water like Cozy Country.
 function buildBedRibbon(uniforms) {
   const SEGS = Math.round(1.5 * STREAM_LENGTH);
-  const STEPS = 12;
+  const STEPS = 26;
   const positions = [];
   const uvs = [];
   const bedDepthAttr = [];
@@ -641,14 +647,15 @@ function buildBedRibbon(uniforms) {
     const dl = Math.hypot(tan.x, tan.z) || 1;
     const fx = -tan.x / dl, fz = -tan.z / dl;
     const bx = -tan.z / dl, bz = tan.x / dl;
-    const hw = halfWidthAt(t) + 1.3;
+    const rawHw = halfWidthAt(t);
+    const hw = rawHw + 1.8;
     const lvl = levelAt(t);
     const wy = waterSurfaceAt(t);
     for (let k = 0; k <= STEPS; k++) {
       const v = k / STEPS;
       const lat = (v * 2 - 1) * hw;
       const cross = Math.abs(v * 2 - 1);
-      const by = lvl - bedDepth(cross);
+      const by = lvl - bedDepth(cross, rawHw);
       positions.push(p.x + bx * lat, by, p.z + bz * lat);
       // World-metre UV scale so gravel grain size stays crisp & uniform at every width
       uvs.push(t * STREAM_LENGTH * 0.34, lat * 0.34);
@@ -741,7 +748,7 @@ function buildBedRibbon(uniforms) {
 // Clear, silky, foamy woodland-brook surface (zero blue swimming-pool tint!).
 function buildWaterRibbon(uniforms) {
   const SEGS = Math.round(2.0 * STREAM_LENGTH);
-  const COLS = 22;
+  const COLS = 42;
   const positions = [];
   const uvs = [];
   const depthAttr = [];
@@ -761,7 +768,7 @@ function buildWaterRibbon(uniforms) {
     const bx = -tan.z / dl, bz = tan.x / dl;
 
     const hw = halfWidthAt(t);
-    const w = hw + 2.1;
+    const w = hw + 2.7;
     const wy = waterSurfaceAt(t);
     const casc = cascadeAt(t);
     const narrow = narrownessAt(t);
@@ -774,8 +781,8 @@ function buildWaterRibbon(uniforms) {
       const wz = p.z + bz * lat;
 
       const th = terrainHeight(wx, wz);
-      const bedCross = Math.min(1, Math.abs(lat) / (hw + 1.3));
-      const by = levelAt(t) - bedDepth(bedCross);
+      const bedCross = Math.min(1, Math.abs(lat) / (hw + 1.8));
+      const by = levelAt(t) - bedDepth(bedCross, hw);
       const floorY = Math.max(th, by);
       let realDepth = wy - floorY;
       if (casc > 0.05) {
@@ -1086,16 +1093,16 @@ function buildStreamMist(uniforms, lateral) {
     const tCenter = tOfArc(d.u - DROP_LEN * 0.25);
     const hw = halfWidthAt(tCenter);
     const wy = waterSurfaceAt(tCenter);
-    const count = 8;
+    const count = Math.max(14, Math.round(hw * 1.65));
     for (let k = 0; k < count; k++) {
-      const lat = ((k + 0.5) / count - 0.5) * 2 * (hw * 0.82) + (Math.random() - 0.5) * 0.9;
-      const tt = THREE.MathUtils.clamp(tCenter + tSpan((Math.random() - 0.5) * 3.2), 0, 1);
+      const lat = ((k + 0.5) / count - 0.5) * 2 * (hw * 0.85) + (Math.random() - 0.5) * 1.0;
+      const tt = THREE.MathUtils.clamp(tCenter + tSpan((Math.random() - 0.5) * 3.6), 0, 1);
       const { x, z } = lateral(tt, lat);
       puffs.push({
         x,
-        y: wy + 0.35 + Math.random() * 0.45,
+        y: wy + 0.38 + Math.random() * 0.50,
         z,
-        s: 1.5 + Math.random() * 1.4,
+        s: 1.65 + Math.random() * 1.55,
         phase: Math.random() * 6.28,
       });
     }

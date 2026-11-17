@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { applyGrassWind, keepAuthoredNormals } from './wind.js';
 import { meadowColor, GRASS_ROOT } from './ground.js';
-import { terrainHeight } from './terrain.js';
+import { terrainHeight, woodlandDensity } from './terrain.js';
 import { streamAt, levelAt, halfWidthAt, inWater } from './streamPath.js';
 
 // Dense instanced grass — the single biggest realism ingredient. Each instance
@@ -63,7 +63,8 @@ export function createGrass(scene, { radius }) {
       // bushes, sedge, spikes) read instead of a wall of tall grass
       const bankD = sd - halfWidthAt(t);
       const bankK = 0.38 + 0.62 * THREE.MathUtils.smoothstep(bankD, 1.5, 9);
-      const keep = THREE.MathUtils.clamp(1.55 - sd / 62, 0.12, 1) * bankK;
+      const uplandFloor = 0.36 + 0.22 * THREE.MathUtils.clamp(1.25 - woodlandDensity(x, z), 0, 1);
+      const keep = Math.max(THREE.MathUtils.clamp(1.50 - bankD / 60, 0, 1), uplandFloor) * bankK;
       if (Math.random() > keep) continue;
       const h = terrainHeight(x, z);
       if (h < levelAt(t) + 0.25) continue; // not in the water — grass runs right up to the edge
