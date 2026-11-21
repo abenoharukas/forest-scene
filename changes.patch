@@ -1,0 +1,2030 @@
+diff --git a/index.html b/index.html
+index 27f3f55..fbae98a 100644
+--- a/index.html
++++ b/index.html
+@@ -1,12 +1,47 @@
+ <!DOCTYPE html>
+-<html lang="zh">
++<html lang="en">
+   <head>
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>Cozy Forest · Three.js</title>
++    <title>Botanical Stream Garden · Three.js</title>
+   </head>
+   <body>
+-    <div id="info">林间 · Cozy Forest<br />鼠标拖拽环顾 · 滚轮缩放 · WASD / 方向键移动 · Shift 加速</div>
++    <header class="brand-badge" aria-label="Scene Title">
++      <div class="bezel-outer">
++        <div class="bezel-inner brand-inner">
++          <span class="eyebrow">Three.js · Realistic Water</span>
++          <h1 class="title">Botanical Stream Garden</h1>
++          <p class="hint">Drag to orbit · Scroll to zoom · WASD to walk · Shift to sprint</p>
++        </div>
++      </div>
++    </header>
++
++    <nav class="hud-dock" aria-label="Garden Controls">
++      <div class="bezel-outer dock-outer">
++        <div class="bezel-inner dock-inner">
++          <div class="control-group" role="group" aria-label="Camera Viewpoints">
++            <span class="group-label">View</span>
++            <button class="pill-btn is-active" data-view="lakeside">Lakeside</button>
++            <button class="pill-btn" data-view="bridge">Bridge</button>
++            <button class="pill-btn" data-view="cascade">Cascade</button>
++            <button class="pill-btn" data-view="canopy">Canopy</button>
++          </div>
++          <div class="divider" aria-hidden="true"></div>
++          <div class="control-group" role="group" aria-label="Atmosphere">
++            <span class="group-label">Light</span>
++            <button class="pill-btn is-active" data-atmo="golden">Golden</button>
++            <button class="pill-btn" data-atmo="morning">Morning</button>
++            <button class="pill-btn" data-atmo="noon">Noon</button>
++            <button class="pill-btn" data-atmo="twilight">Twilight</button>
++          </div>
++          <div class="divider" aria-hidden="true"></div>
++          <button class="pill-btn ripple-btn is-active" id="ripple-toggle" aria-pressed="true">
++            Ripples
++          </button>
++        </div>
++      </div>
++    </nav>
++
+     <script type="module" src="/src/main.js"></script>
+   </body>
+ </html>
+diff --git a/package.json b/package.json
+index a73e0bf..c6fc9a0 100644
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+-  "name": "forest-scene",
++  "name": "threejs-3d-garden",
+   "private": true,
+-  "version": "0.0.0",
++  "version": "1.0.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+@@ -9,6 +9,8 @@
+     "preview": "vite preview"
+   },
+   "dependencies": {
++    "@fontsource/cormorant-garamond": "^5.1.1",
++    "@fontsource/plus-jakarta-sans": "^5.1.1",
+     "three": "^0.169.0"
+   },
+   "devDependencies": {
+diff --git a/src/garden.js b/src/garden.js
+new file mode 100644
+index 0000000..b424495
+--- /dev/null
++++ b/src/garden.js
+@@ -0,0 +1,293 @@
++import * as THREE from 'three';
++import { streamCurve, levelAt, halfWidthAt, originalT } from './streamPath.js';
++import { terrainHeight } from './terrain.js';
++
++export function createGarden(scene) {
++  const group = new THREE.Group();
++  const lanternCores = [];
++  const lanternLights = [];
++  const lilyPads = [];
++
++  const woodMat = new THREE.MeshStandardMaterial({
++    color: new THREE.Color('#7a5234'),
++    roughness: 0.88,
++    metalness: 0.0,
++  });
++  const darkWoodMat = new THREE.MeshStandardMaterial({
++    color: new THREE.Color('#4f3522'),
++    roughness: 0.92,
++    metalness: 0.0,
++  });
++  const stoneMat = new THREE.MeshStandardMaterial({
++    color: new THREE.Color('#8c8b82'),
++    roughness: 0.94,
++    metalness: 0.0,
++  });
++  const mossStoneMat = new THREE.MeshStandardMaterial({
++    color: new THREE.Color('#738068'),
++    roughness: 0.95,
++    metalness: 0.0,
++  });
++  const coreMat = new THREE.MeshStandardMaterial({
++    color: new THREE.Color('#fff2cc'),
++    emissive: new THREE.Color('#ffb85c'),
++    emissiveIntensity: 0.9,
++    roughness: 0.4,
++    userData: { noToon: true },
++  });
++
++  // Helper to get point & tangent frame along stream
++  function frameAt(t) {
++    const p = streamCurve.getPointAt(t);
++    const tan = streamCurve.getTangentAt(t);
++    const tl = Math.hypot(tan.x, tan.z) || 1;
++    const tx = tan.x / tl, tz = tan.z / tl;
++    const bx = -tz, bz = tx;
++    return { p, tx, tz, bx, bz, lvl: levelAt(t), hw: halfWidthAt(t) };
++  }
++
++  // ---- 1. Arched Cedar Footbridge across the scenic narrow chute ----
++  const bridgeT = originalT(0.495);
++  {
++    const { p, tx, tz, bx, bz, lvl, hw } = frameAt(bridgeT);
++    const span = (hw + 2.4) * 2;
++    const width = 2.3;
++    const archHeight = 1.55;
++    const bridge = new THREE.Group();
++    bridge.position.set(p.x, lvl + 0.25, p.z);
++    bridge.rotation.y = Math.atan2(bx, bz);
++
++    const planks = 18;
++    const plankGeo = new THREE.BoxGeometry(width, 0.12, span / planks * 0.86);
++    for (let i = 0; i < planks; i++) {
++      const u = (i + 0.5) / planks - 0.5;
++      const zPos = u * span;
++      const yPos = Math.cos(u * Math.PI) * archHeight;
++      const slope = -Math.sin(u * Math.PI) * (archHeight * Math.PI / span);
++      const plank = new THREE.Mesh(plankGeo, woodMat);
++      plank.position.set(0, yPos, zPos);
++      plank.rotation.x = -Math.atan(slope);
++      plank.castShadow = true;
++      plank.receiveShadow = true;
++      bridge.add(plank);
++    }
++
++    // Side stringer beams & posts
++    const postGeo = new THREE.BoxGeometry(0.16, 1.05, 0.16);
++    const postIndices = [0, 4, 9, 13, 17];
++    for (const side of [-1, 1]) {
++      const xOff = side * (width * 0.5 - 0.12);
++      const railPoints = [];
++      for (const idx of postIndices) {
++        const u = (idx + 0.5) / planks - 0.5;
++        const zPos = u * span;
++        const yPos = Math.cos(u * Math.PI) * archHeight;
++        const post = new THREE.Mesh(postGeo, darkWoodMat);
++        post.position.set(xOff, yPos + 0.5, zPos);
++        post.castShadow = true;
++        bridge.add(post);
++        railPoints.push(new THREE.Vector3(xOff, yPos + 0.95, zPos));
++      }
++      const railCurve = new THREE.CatmullRomCurve3(railPoints);
++      const railGeo = new THREE.TubeGeometry(railCurve, 20, 0.055, 6, false);
++      const rail = new THREE.Mesh(railGeo, woodMat);
++      rail.castShadow = true;
++      bridge.add(rail);
++    }
++    group.add(bridge);
++  }
++
++  // ---- 2. Sculpted Stone Lanterns (Tōrō) ----
++  function addLantern(x, z, scale = 1.0, addLight = false) {
++    const y = terrainHeight(x, z);
++    const g = new THREE.Group();
++    g.position.set(x, y, z);
++    g.scale.setScalar(scale);
++
++    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.56, 0.3, 6), mossStoneMat);
++    base.position.y = 0.15;
++    base.castShadow = true;
++    base.receiveShadow = true;
++    g.add(base);
++
++    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 1.1, 6), stoneMat);
++    pillar.position.y = 0.85;
++    pillar.castShadow = true;
++    g.add(pillar);
++
++    const platform = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.28, 0.22, 6), mossStoneMat);
++    platform.position.y = 1.48;
++    platform.castShadow = true;
++    g.add(platform);
++
++    const core = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.42, 0.36), coreMat);
++    core.position.y = 1.8;
++    g.add(core);
++    lanternCores.push(core);
++
++    const roof = new THREE.Mesh(new THREE.ConeGeometry(0.68, 0.44, 6), mossStoneMat);
++    roof.position.y = 2.22;
++    roof.castShadow = true;
++    g.add(roof);
++
++    const finial = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), stoneMat);
++    finial.position.y = 2.48;
++    g.add(finial);
++
++    if (addLight) {
++      const pt = new THREE.PointLight('#ffb866', 0.8, 18, 1.8);
++      pt.position.set(0, 1.8, 0);
++      g.add(pt);
++      lanternLights.push(pt);
++    }
++
++    group.add(g);
++  }
++
++  // Place lanterns near bridge approaches & lakeside
++  {
++    const fBridge = frameAt(bridgeT);
++    const off = fBridge.hw + 3.4;
++    addLantern(fBridge.p.x + fBridge.bx * off + fBridge.tx * 2.2, fBridge.p.z + fBridge.bz * off + fBridge.tz * 2.2, 0.95, true);
++    addLantern(fBridge.p.x - fBridge.bx * off - fBridge.tx * 2.2, fBridge.p.z - fBridge.bz * off - fBridge.tz * 2.2, 0.95, true);
++
++    const fLake = frameAt(originalT(0.42));
++    addLantern(fLake.p.x - fLake.bx * (fLake.hw + 3.6), fLake.p.z - fLake.bz * (fLake.hw + 3.6), 1.05, true);
++
++    const fPool = frameAt(originalT(0.365));
++    addLantern(fPool.p.x - fPool.bx * (fPool.hw + 3.2), fPool.p.z - fPool.bz * (fPool.hw + 3.2), 0.9, false);
++  }
++
++  // ---- 3. Mossy Stepping-Stone Garden Path along the lakeside ----
++  {
++    const stoneGeo = new THREE.CylinderGeometry(0.65, 0.72, 0.16, 7);
++    const steps = 16;
++    const stones = new THREE.InstancedMesh(stoneGeo, mossStoneMat, steps);
++    stones.receiveShadow = true;
++    stones.castShadow = true;
++    const dummy = new THREE.Object3D();
++    for (let i = 0; i < steps; i++) {
++      const t = THREE.MathUtils.lerp(originalT(0.38), originalT(0.49), i / (steps - 1));
++      const f = frameAt(t);
++      const lat = -(f.hw + 2.8 + Math.sin(i * 0.9) * 0.7);
++      const x = f.p.x + f.bx * lat;
++      const z = f.p.z + f.bz * lat;
++      const y = terrainHeight(x, z);
++      dummy.position.set(x, y + 0.04, z);
++      dummy.rotation.set((Math.random() - 0.5) * 0.08, Math.random() * Math.PI, (Math.random() - 0.5) * 0.08);
++      const s = 0.85 + Math.random() * 0.4;
++      dummy.scale.set(s, 1, s * (0.75 + Math.random() * 0.35));
++      dummy.updateMatrix();
++      stones.setMatrixAt(i, dummy.matrix);
++    }
++    stones.instanceMatrix.needsUpdate = true;
++    group.add(stones);
++  }
++
++  // ---- 4. Timber Garden Bench overlooking the main lake ----
++  {
++    const f = frameAt(originalT(0.42));
++    const lat = -(f.hw + 4.4);
++    const bx = f.p.x + f.bx * lat;
++    const bz = f.p.z + f.bz * lat;
++    const by = terrainHeight(bx, bz);
++    const bench = new THREE.Group();
++    bench.position.set(bx, by, bz);
++    bench.rotation.y = Math.atan2(f.bx, f.bz);
++
++    const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.72), woodMat);
++    seat.position.y = 0.52;
++    seat.castShadow = true;
++    seat.receiveShadow = true;
++    bench.add(seat);
++
++    const back = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.48, 0.1), woodMat);
++    back.position.set(0, 0.88, -0.32);
++    back.rotation.x = -0.14;
++    back.castShadow = true;
++    bench.add(back);
++
++    const legGeo = new THREE.BoxGeometry(0.14, 0.52, 0.62);
++    for (const sx of [-0.95, 0.95]) {
++      const leg = new THREE.Mesh(legGeo, darkWoodMat);
++      leg.position.set(sx, 0.26, 0);
++      leg.castShadow = true;
++      bench.add(leg);
++    }
++    group.add(bench);
++  }
++
++  // ---- 5. Floating Waterlilies & Lotus Blossoms on calm pools ----
++  {
++    const padGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.025, 14, 1, false, 0, Math.PI * 1.82);
++    const padMat = new THREE.MeshStandardMaterial({
++      color: new THREE.Color('#3f7a44'),
++      roughness: 0.72,
++    });
++    const lotusMat = new THREE.MeshStandardMaterial({
++      color: new THREE.Color('#f7bfd0'),
++      emissive: new THREE.Color('#662238'),
++      emissiveIntensity: 0.12,
++      roughness: 0.5,
++    });
++    const petalGeo = new THREE.ConeGeometry(0.08, 0.22, 5);
++
++    const clusters = [
++      { t: originalT(0.415), lat: -4.8, count: 7 },
++      { t: originalT(0.435), lat: 5.2, count: 6 },
++      { t: originalT(0.16), lat: 2.2, count: 5 },
++      { t: originalT(0.70), lat: -3.5, count: 6 },
++    ];
++
++    for (const cl of clusters) {
++      const f = frameAt(cl.t);
++      for (let i = 0; i < cl.count; i++) {
++        const px = f.p.x + f.bx * cl.lat + (Math.random() - 0.5) * 3.8;
++        const pz = f.p.z + f.bz * cl.lat + (Math.random() - 0.5) * 3.8;
++        const padGroup = new THREE.Group();
++        const baseY = f.lvl + 0.025;
++        padGroup.position.set(px, baseY, pz);
++        padGroup.rotation.y = Math.random() * Math.PI * 2;
++        const sc = 0.75 + Math.random() * 0.65;
++        padGroup.scale.setScalar(sc);
++
++        const pad = new THREE.Mesh(padGeo, padMat);
++        pad.receiveShadow = true;
++        padGroup.add(pad);
++
++        if (i % 2 === 0) {
++          const flower = new THREE.Group();
++          flower.position.y = 0.04;
++          for (let p = 0; p < 6; p++) {
++            const ang = (p / 6) * Math.PI * 2;
++            const petal = new THREE.Mesh(petalGeo, lotusMat);
++            petal.position.set(Math.cos(ang) * 0.06, 0.06, Math.sin(ang) * 0.06);
++            petal.rotation.z = -Math.cos(ang) * 0.55;
++            petal.rotation.x = Math.sin(ang) * 0.55;
++            flower.add(petal);
++          }
++          padGroup.add(flower);
++        }
++
++        group.add(padGroup);
++        lilyPads.push({ mesh: padGroup, baseY, phase: Math.random() * Math.PI * 2 });
++      }
++    }
++  }
++
++  scene.add(group);
++
++  return {
++    group,
++    update(t, lanternGlow = 0.85) {
++      coreMat.emissiveIntensity = lanternGlow;
++      for (const pt of lanternLights) {
++        pt.intensity = lanternGlow * 0.95;
++      }
++      for (const lp of lilyPads) {
++        lp.mesh.position.y = lp.baseY + Math.sin(t * 1.6 + lp.phase) * 0.015;
++        lp.mesh.rotation.z = Math.sin(t * 1.2 + lp.phase) * 0.025;
++      }
++    },
++  };
++}
+diff --git a/src/main.js b/src/main.js
+index 6a2a416..74c2b82 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -1,5 +1,9 @@
+ import * as THREE from 'three';
+ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
++import '@fontsource/plus-jakarta-sans/400.css';
++import '@fontsource/plus-jakarta-sans/500.css';
++import '@fontsource/plus-jakarta-sans/600.css';
++import '@fontsource/cormorant-garamond/600.css';
+ import './style.css';
+ import { createWorld } from './world.js';
+ import { createGroundLayer } from './ground.js';
+@@ -9,39 +13,22 @@ import { createTrees } from './trees.js';
+ import { createFoliage } from './foliage.js';
+ import { createParticles } from './particles.js';
+ import { createStream } from './stream.js';
++import { createGarden } from './garden.js';
+ import { createComposer } from './postprocess.js';
+ import { toonify, toonifyMaterials } from './toon.js';
+ import { updateWind } from './wind.js';
+-import { streamCurve, levelAt, HOME_T, LOOK_T } from './streamPath.js';
++import { streamCurve, levelAt, halfWidthAt, HOME_T, LOOK_T, originalT } from './streamPath.js';
+ import { installGlobalRandom } from './rng.js';
+ 
+-// Deterministic randomness so the forest layout is identical on every load
+-// (makes the scene stable and tunable instead of reshuffling each reload).
+ installGlobalRandom();
+ 
+-// ---- renderer ----
+-// MSAA is inert here: EffectComposer renders the scene into its own render
+-// target, so a multisampled default framebuffer would only ever antialias
+-// OutputPass's fullscreen quad. Asking for it allocates a second full-size
+-// buffer that never antialiases anything.
+-// preserveDrawingBuffer exists only to grab canvas.toDataURL() for the README
+-// screenshots, and it keeps the browser from discarding the backbuffer every
+-// frame — so it's opt-in via ?capture instead of always on.
+ const CAPTURE = new URLSearchParams(location.search).has('capture');
+-// A retina dpr of 2 shades 4x the fragments of dpr 1. 1.5 keeps the foliage
+-// and water sparkle crisp for a bit over half the per-pixel cost.
+ const MAX_PIXEL_RATIO = 1.5;
+ const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: CAPTURE });
+ renderer.setSize(innerWidth, innerHeight);
+ renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
+ renderer.shadowMap.enabled = true;
+ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+-// The shadow map is not redrawn every frame — the only per-frame motion is the
+-// wind vertex shader, whose sway is far under one shadow texel. It is refreshed
+-// on demand instead (see the loop at the bottom): when the camera has moved the
+-// shadow box far enough to matter, or when a streamed cell brings new casters.
+-// This is a change from rendering it exactly once at startup, which was only
+-// sound while the world was a fixed field that existed in full from frame one.
+ renderer.shadowMap.autoUpdate = false;
+ renderer.shadowMap.needsUpdate = true;
+ renderer.toneMapping = THREE.ACESFilmicToneMapping;
+@@ -49,26 +36,17 @@ renderer.toneMappingExposure = 1.32;
+ renderer.outputColorSpace = THREE.SRGBColorSpace;
+ document.body.appendChild(renderer.domElement);
+ 
+-// ---- scene & camera ----
+ const scene = new THREE.Scene();
+-// Far plane reaches past the ground/far-tree radius so the treeline runs to the
+-// horizon instead of being clipped mid-forest.
+ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 1600);
+-// above a lower pool looking slightly down the terraced cascade, so the
+-// green pools show between the white steps (like the reference footage)
++
+ const camP = streamCurve.getPointAt(HOME_T);
+ const lookP = streamCurve.getPointAt(LOOK_T);
+ const LOOK = new THREE.Vector3(lookP.x, levelAt(LOOK_T) + 0.5, lookP.z);
+ camera.position.set(camP.x - 2, levelAt(HOME_T) + 7.0, camP.z + 8);
+ camera.lookAt(LOOK);
+ 
+-// ---- world (fog / lights / sky) ----
+ const world = createWorld(scene);
+ 
+-// ---- streaming world ----
+-// Layer radii, in world units. Each is a knob: how far out that layer exists.
+-// The ground and the far trees reach the horizon so there is never an empty
+-// skyline; the detailed layers stop where their detail stops being legible.
+ const RADIUS = {
+   ground: 700,
+   grass: 150,
+@@ -83,42 +61,24 @@ streaming.register(ground.layer);
+ const grass = createGrass(scene, { radius: RADIUS.grass });
+ streaming.register(grass.layer);
+ 
+-// ---- forest ----
+-// Two tiers with disjoint species sets: the close-range broadleaves out to
+-// treesNear, and the background conifers on a coarser grid all the way to the
+-// horizon. See trees.js for why the sets must not overlap.
+ const trees = createTrees(scene);
+ streaming.register({ ...trees.layers[0], radius: RADIUS.treesNear });
+-// A coarser grid for the far tier: at 100m the horizon ring would be ~150 cells
+-// each holding several InstancedMeshes, which is hundreds of draw calls for trees
+-// a few pixels tall. Bigger cells trade culling precision for far fewer meshes.
+ streaming.register({ ...trees.layers[1], radius: RADIUS.treesFar, size: 350 });
+ 
+-// ---- flowers + bushes ----
+ const foliage = createFoliage(scene);
+ streaming.register({ ...foliage.layer, radius: RADIUS.foliage });
+ 
+-// ---- water + foam + boulders ----
+-const stream = createStream(scene);
++const stream = createStream(scene, world);
+ scene.add(stream.group);
+ 
+-// ---- dust + birds ----
++const garden = createGarden(scene);
+ const particles = createParticles(scene, camera);
+ 
+-// ---- cel shading ----
+-// Must run after every scene module, since it patches the materials they built.
+-// This is where the crowns get their volume: the solid canopy texture is nearly
+-// one flat tone on purpose, and the warm-lit / cool-shadow split with a hard
+-// terminator is what turns each shell back into a readable form.
+ toonify(scene);
+-// Streaming layers have no geometry in the scene yet, so the traversal above
+-// cannot find their materials. They are shared across every cell, so handing them
+-// over once here covers all cells ever built.
+ toonifyMaterials([
+   ground.material, grass.material, ...trees.materials, ...foliage.materials,
+ ]);
+ 
+-// ---- controls: free exploration ----
+ const controls = new OrbitControls(camera, renderer.domElement);
+ controls.enableDamping = true;
+ controls.dampingFactor = 0.06;
+@@ -128,9 +88,107 @@ controls.maxDistance = 260;
+ controls.maxPolarAngle = Math.PI * 0.56;
+ controls.update();
+ 
+-// ---- post-processing ----
+ const composer = createComposer(renderer, scene, camera);
+ 
++// ---- Camera viewpoints ----
++function makeViewpoint(tCam, latCam, heightCam, tLook, latLook = 0, heightLook = 0.4) {
++  const pc = streamCurve.getPointAt(tCam);
++  const tc = streamCurve.getTangentAt(tCam);
++  const bcx = -tc.z, bcz = tc.x;
++  const bcl = Math.hypot(bcx, bcz) || 1;
++  const pos = new THREE.Vector3(
++    pc.x + (bcx / bcl) * latCam,
++    levelAt(tCam) + heightCam,
++    pc.z + (bcz / bcl) * latCam
++  );
++
++  const pl = streamCurve.getPointAt(tLook);
++  const tl = streamCurve.getTangentAt(tLook);
++  const blx = -tl.z, blz = tl.x;
++  const bll = Math.hypot(blx, blz) || 1;
++  const target = new THREE.Vector3(
++    pl.x + (blx / bll) * latLook,
++    levelAt(tLook) + heightLook,
++    pl.z + (blz / bll) * latLook
++  );
++  return { pos, target };
++}
++
++const VIEWPOINTS = {
++  lakeside: {
++    pos: new THREE.Vector3(camP.x - 2, levelAt(HOME_T) + 7.0, camP.z + 8),
++    target: LOOK.clone(),
++  },
++  bridge: makeViewpoint(
++    originalT(0.455),
++    -(halfWidthAt(originalT(0.455)) * 0.55),
++    3.6,
++    originalT(0.498),
++    0,
++    1.1
++  ),
++  cascade: makeViewpoint(
++    originalT(0.32),
++    4.5,
++    5.8,
++    originalT(0.385),
++    0,
++    0.5
++  ),
++  canopy: makeViewpoint(
++    originalT(0.39),
++    -18,
++    24,
++    originalT(0.44),
++    0,
++    1.0
++  ),
++};
++
++let camAnim = null;
++function flyTo(key) {
++  const vp = VIEWPOINTS[key];
++  if (!vp) return;
++  camAnim = {
++    startPos: camera.position.clone(),
++    endPos: vp.pos.clone(),
++    startTarget: controls.target.clone(),
++    endTarget: vp.target.clone(),
++    t: 0,
++    duration: 1.25,
++  };
++}
++
++// ---- HUD wiring ----
++const viewBtns = document.querySelectorAll('[data-view]');
++viewBtns.forEach((btn) => {
++  btn.addEventListener('click', () => {
++    viewBtns.forEach((b) => b.classList.remove('is-active'));
++    btn.classList.add('is-active');
++    flyTo(btn.dataset.view);
++  });
++});
++
++const atmoBtns = document.querySelectorAll('[data-atmo]');
++atmoBtns.forEach((btn) => {
++  btn.addEventListener('click', () => {
++    atmoBtns.forEach((b) => b.classList.remove('is-active'));
++    btn.classList.add('is-active');
++    world.setAtmosphere(btn.dataset.atmo);
++  });
++});
++
++const rippleBtn = document.getElementById('ripple-toggle');
++let ripplesOn = true;
++if (rippleBtn) {
++  rippleBtn.addEventListener('click', () => {
++    ripplesOn = !ripplesOn;
++    rippleBtn.classList.toggle('is-active', ripplesOn);
++    rippleBtn.setAttribute('aria-pressed', String(ripplesOn));
++    stream.setRippleStrength(ripplesOn ? 1.0 : 0.28);
++  });
++}
++
+ // ---- WASD movement ----
+ const keys = {};
+ addEventListener('keydown', (e) => { keys[e.code] = true; });
+@@ -150,13 +208,13 @@ function move(dt) {
+   if (keys.KeyD || keys.ArrowRight) m.add(right);
+   if (keys.KeyA || keys.ArrowLeft) m.sub(right);
+   if (m.lengthSq() > 0) {
++    camAnim = null;
+     m.normalize().multiplyScalar(speed);
+     camera.position.add(m);
+     controls.target.add(m);
+   }
+ }
+ 
+-// ---- resize ----
+ addEventListener('resize', () => {
+   camera.aspect = innerWidth / innerHeight;
+   camera.updateProjectionMatrix();
+@@ -164,30 +222,34 @@ addEventListener('resize', () => {
+   composer.setSize(innerWidth, innerHeight);
+ });
+ 
+-// Handles for the headless-Chrome capture harness in .shot/ — it drives the
+-// camera and reads renderer.info to check draw calls, streaming and leaks.
+-// THREE is included so the harness can raycast and build vectors: it runs its
+-// code through Runtime.evaluate, where a bare 'three' specifier cannot resolve.
+-window.__scene = { scene, camera, renderer, controls, streaming, THREE, world };
++window.__scene = { scene, camera, renderer, controls, streaming, THREE, world, stream, garden };
+ 
+-// The shadow map is redrawn only when something that affects it changes: the
+-// camera moving the box, or a cell arriving with new casters in it. Rebuilding
+-// every frame would re-draw the whole visible forest into the depth map.
+ let shadowDirty = true;
+ streaming.onCellLoaded(() => { shadowDirty = true; });
+ const lastShadowPos = new THREE.Vector3(Infinity, 0, Infinity);
+-const SHADOW_STEP = 8; // redraw after this much camera travel
++const SHADOW_STEP = 8;
+ 
+-// ---- animation loop ----
+ const clock = new THREE.Clock();
+ function animate() {
+   const dt = Math.min(clock.getDelta(), 0.05);
+   const t = clock.elapsedTime;
++
++  if (camAnim) {
++    camAnim.t += dt;
++    const p = Math.min(camAnim.t / camAnim.duration, 1);
++    const ease = 1 - Math.pow(1 - p, 3);
++    camera.position.lerpVectors(camAnim.startPos, camAnim.endPos, ease);
++    controls.target.lerpVectors(camAnim.startTarget, camAnim.endTarget, ease);
++    if (p >= 1) camAnim = null;
++  }
++
+   move(dt);
+   updateWind(t);
++  world.updateAtmosphere(dt, renderer);
+   streaming.update(camera);
+   world.followSky(camera);
+   stream.update(dt);
++  garden.update(t, world.getLanternGlow());
+   particles.update(dt, t);
+   controls.update();
+   grass.update(camera);
+diff --git a/src/stream.js b/src/stream.js
+index b7fffcf..a203ca0 100644
+--- a/src/stream.js
++++ b/src/stream.js
+@@ -4,56 +4,42 @@ import {
+   STREAM_LENGTH, tOfArc, tSpan, originalT,
+ } from './streamPath.js';
+ import { terrainHeight } from './terrain.js';
+-import { makeRockTexture, makeFoamStreakTexture, makeBedTexture } from './textures.js';
+-
+-// Terraced brook. The water ribbon follows the stepped elevation profile and
+-// uses a MeshStandardMaterial with injected flow/foam shading, so it sits in
+-// the real lighting pipeline: dappled tree shadows fall on the surface and
+-// the sun puts a moving specular on it. Fine anisotropic ripple/fleck noise
+-// streams downstream everywhere. Rocks get white foam collars.
+-// depth of the carved bed below the local water level, by normalized
+-// cross-channel position (0 centre, 1 edge) — shared by the bed ribbon
+-// and the pebbles sitting on it
++import { makeRockTexture, makeBedTexture } from './textures.js';
++
+ function bedDepth(cross) {
+-  return 0.4 + 1.1 * (1 - cross * cross);
++  return 0.42 + 1.15 * (1 - cross * cross);
+ }
+ 
+-export function createStream(scene) {
++export function createStream(scene, world) {
+   const group = new THREE.Group();
+ 
+-  group.add(buildBedRibbon());
++  const bed = buildBedRibbon();
++  group.add(bed.mesh);
+ 
+-  const water = buildWaterRibbon();
++  const water = buildWaterRibbon(world);
+   group.add(water.mesh);
+ 
+   const rockTex = makeRockTexture();
+   const rockMat = new THREE.MeshStandardMaterial({
+     map: rockTex,
+-    roughness: 0.95,
++    roughness: 0.92,
+     metalness: 0.0,
+   });
+   const variants = [buildRockGeo(), buildRockGeo(), buildRockGeo()];
+   const dummy = new THREE.Object3D();
+   const col = new THREE.Color();
+ 
+-  // foam wakes: collected while placing rocks that break the surface,
+-  // each remembers the downstream direction so the streaks trail with the flow
+-  const foamRings = [];
+-  const addRing = (x, z, t, s) => {
+-    const tan = streamCurve.getTangentAt(THREE.MathUtils.clamp(t, 0, 1));
+-    const dl = Math.hypot(tan.x, tan.z) || 1;
+-    // t=1 is upstream, so downstream is -tangent
+-    foamRings.push({ x, z, y: levelAt(t) - 0.02, s, dx: -tan.x / dl, dz: -tan.z / dl });
+-  };
+-
+   const setRock = (mesh, i, cx, cz, y, s) => {
+     dummy.position.set(cx, y, cz);
+     dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+-    dummy.scale.set(s * (0.85 + Math.random() * 0.4), s * (0.6 + Math.random() * 0.4), s * (0.85 + Math.random() * 0.4));
++    dummy.scale.set(
++      s * (0.85 + Math.random() * 0.4),
++      s * (0.6 + Math.random() * 0.4),
++      s * (0.85 + Math.random() * 0.4)
++    );
+     dummy.updateMatrix();
+     mesh.setMatrixAt(i, dummy.matrix);
+-    // warm beige stone like the reference, not cold grey
+-    col.setHSL(0.09, 0.10 + Math.random() * 0.09, 0.55 + Math.random() * 0.2);
++    col.setHSL(0.09, 0.10 + Math.random() * 0.09, 0.54 + Math.random() * 0.2);
+     mesh.setColorAt(i, col);
+   };
+ 
+@@ -72,7 +58,6 @@ export function createStream(scene) {
+     rocks.castShadow = true;
+     rocks.receiveShadow = true;
+     let i = 0;
+-    // The drop table is in arc length; the curve is sampled by t.
+     const SILL_JITTER = tSpan(1.3);
+     for (const d of DROPS) {
+       const tLip = tOfArc(d.u + DROP_LEN * 0.4);
+@@ -85,7 +70,6 @@ export function createStream(scene) {
+         const { x, z } = lateral(tt, lat);
+         const s = 0.9 + Math.random() * 1.1;
+         setRock(rocks, i++, x, z, lipLvl - 0.55 + s * 0.28, s);
+-        addRing(x, z, tFoot, s * 1.6);
+       }
+     }
+     rocks.count = i;
+@@ -94,11 +78,8 @@ export function createStream(scene) {
+     group.add(rocks);
+   }
+ 
+-  // ---- pebbles on the bed, visible THROUGH the clear water ----
++  // ---- pebbles on the bed, visible through the clear water ----
+   {
+-    // Counts along the brook are authored per unit of length, not as totals: the
+-    // authored numbers were chosen against a 326-unit curve, and keeping them
+-    // fixed on a 3.2x longer one would thin every bed and bank to a third.
+     const COUNT = perLength(420);
+     const pebbles = new THREE.InstancedMesh(variants[2], rockMat, COUNT);
+     pebbles.receiveShadow = true;
+@@ -108,7 +89,6 @@ export function createStream(scene) {
+       const lat = (Math.random() - 0.5) * 2 * (hw - 0.5);
+       const { x, z } = lateral(tt, lat);
+       const s = 0.18 + Math.random() * 0.5;
+-      // sit on the sandy bed ribbon so they show through the clear water
+       const cross = Math.abs(lat) / (hw + 1.2);
+       const y = levelAt(tt) - bedDepth(cross) + s * 0.35;
+       setRock(pebbles, i, x, z, y, s);
+@@ -140,8 +120,6 @@ export function createStream(scene) {
+         const lvl = levelAt(tt);
+         const y = Math.max(terrainHeight(x, z), lvl - 0.9) + s * 0.18;
+         setRock(rocks, i, x, z, y, s);
+-        // collar only where the rock actually pokes through the surface
+-        if (!set.bank && y + s * 0.5 > lvl && y - s * 0.5 < lvl) addRing(x, z, tt, s * 2.0);
+       }
+       rocks.instanceMatrix.needsUpdate = true;
+       if (rocks.instanceColor) rocks.instanceColor.needsUpdate = true;
+@@ -151,11 +129,11 @@ export function createStream(scene) {
+ 
+   // ---- hand-placed hero boulders near the start view ----
+   {
+-    // Placed by eye against the lake in the opening shot, so their parameters are
+-    // ported from the original curve rather than reinterpreted on the longer one.
+     const hero = [
+-      { t: originalT(0.405), lat: -3.5, s: 1.9 }, { t: originalT(0.418), lat: 1.5, s: 1.4 },
+-      { t: originalT(0.432), lat: 4.5, s: 2.3 }, { t: originalT(0.445), lat: -1.0, s: 1.1 },
++      { t: originalT(0.405), lat: -3.5, s: 1.9 },
++      { t: originalT(0.418), lat: 1.5, s: 1.4 },
++      { t: originalT(0.432), lat: 4.5, s: 2.3 },
++      { t: originalT(0.445), lat: -1.0, s: 1.1 },
+       { t: originalT(0.458), lat: -5.0, s: 1.6 },
+     ];
+     const rocks = new THREE.InstancedMesh(variants[1], rockMat, hero.length);
+@@ -164,270 +142,303 @@ export function createStream(scene) {
+     hero.forEach((hr, i) => {
+       const { x, z } = lateral(hr.t, hr.lat);
+       setRock(rocks, i, x, z, levelAt(hr.t) - 0.7 + hr.s * 0.35, hr.s);
+-      addRing(x, z, hr.t, hr.s * 1.9);
+     });
+     rocks.instanceMatrix.needsUpdate = true;
+     if (rocks.instanceColor) rocks.instanceColor.needsUpdate = true;
+     group.add(rocks);
+   }
+ 
+-  // ---- foam wakes riding on the surface, trailing downstream of rocks ----
+-  {
+-    const wakeTex = makeFoamStreakTexture();
+-    const wakeGeo = new THREE.PlaneGeometry(1, 1);
+-    wakeGeo.rotateX(-Math.PI / 2);
+-    const wakeMat = new THREE.MeshBasicMaterial({
+-      map: wakeTex,
+-      transparent: true,
+-      depthWrite: false,
+-      opacity: 0.85,
+-    });
+-    const wakes = new THREE.InstancedMesh(wakeGeo, wakeMat, foamRings.length);
+-    wakes.renderOrder = 3;
+-    foamRings.forEach((r, i) => {
+-      // local +x of the card points downstream (texture bow sits upstream)
+-      dummy.position.set(r.x + r.dx * r.s * 0.45, r.y + 0.06, r.z + r.dz * r.s * 0.45);
+-      dummy.rotation.set(0, Math.atan2(-r.dz, r.dx), 0);
+-      dummy.scale.set(r.s * 2.1, 1, r.s * (0.9 + Math.random() * 0.3));
+-      dummy.updateMatrix();
+-      wakes.setMatrixAt(i, dummy.matrix);
+-    });
+-    wakes.instanceMatrix.needsUpdate = true;
+-    group.add(wakes);
+-  }
+-
+   return {
+     group,
++    setRippleStrength(v) {
++      water.uniforms.uRippleStrength.value = v;
++    },
+     update(dt) {
+       water.uniforms.uTime.value += dt;
++      bed.uniforms.uTime.value += dt;
++      if (world) {
++        water.uniforms.uSkyTop.value.copy(world.PALETTE.skyTop);
++        water.uniforms.uSkyMid.value.copy(world.PALETTE.skyMid);
++        water.uniforms.uSkyBottom.value.copy(world.PALETTE.skyBottom);
++        water.uniforms.uSunColor.value.copy(world.PALETTE.sun);
++        water.uniforms.uSunDir.value.copy(world.sunDir);
++        water.uniforms.uSunIntensity.value = world.sun.intensity;
++        bed.uniforms.uSunIntensity.value = world.sun.intensity;
++      }
+     },
+   };
+ }
+ 
+-// Lengthwise resolution of both ribbons, in segments per world unit. The water
+-// and bed ribbons were authored at 420 segments over the original 326-unit curve,
+-// i.e. 1.287/unit, and it is the RATE that matters rather than the total: kept as
+-// a fixed 420, a 3.2x longer brook would be sampled 3.2x more coarsely and every
+-// cascade lip would lose the crisp fold that makes it read as a step.
+ const ORIGINAL_LENGTH = 326.409;
+ const LENGTH_RATIO = STREAM_LENGTH / ORIGINAL_LENGTH;
+ const SEGS_PER_UNIT = 420 / ORIGINAL_LENGTH;
+ const RIBBON_SEGS = Math.round(SEGS_PER_UNIT * STREAM_LENGTH);
+-
+-// Scale a count that was authored against the original curve so it keeps the same
+-// per-unit density on the extended one.
+ const perLength = (authored) => Math.round(authored * (STREAM_LENGTH / ORIGINAL_LENGTH));
+ 
+-// Ribbon following the curve in plan AND the terraced profile in elevation.
+-// MeshStandardMaterial with injected flow/foam shading: receives shadows,
+-// gets sun specular, fogs with the scene.
+-function buildWaterRibbon() {
++function buildWaterRibbon(world) {
+   const SEGS = RIBBON_SEGS;
+-  // Cross-channel columns. Two (one per bank) left every quad spanning the full
+-  // width, and a quad whose four corners carry different depth/width values
+-  // interpolates differently in each of its two triangles — which creased along
+-  // every diagonal and read as glass tiles on a wide pool. It also meant the
+-  // middle of a 43-unit lake could not hold a depth gradient at all.
+-  const COLS = 8;
++  const STEPS = 12;
+   const positions = [];
+   const uvs = [];
+   const foamAttr = [];
+   const depthAttr = [];
+   const widthAttr = [];
++  const flowAttr = [];
+   const index = [];
++
+   for (let i = 0; i <= SEGS; i++) {
+     const t = i / SEGS;
+     const p = streamCurve.getPointAt(t);
+     const tan = streamCurve.getTangentAt(t);
+     const bx = -tan.z, bz = tan.x;
+     const bl = Math.hypot(bx, bz) || 1;
+-    const w = halfWidthAt(t) + 1.8; // tucked under both banks
+-    const y = levelAt(t) - 0.1;
+-    const c = Math.min(1, cascadeAt(t) * (0.85 + narrownessAt(t) * 0.15));
+-    for (let k = 0; k <= COLS; k++) {
+-      const v = k / COLS;
+-      const lat = (v * 2 - 1) * w;
+-      positions.push(p.x + (bx / bl) * lat, y, p.z + (bz / bl) * lat);
+-      // Lengthwise coordinate in ORIGINAL-CURVE UNITS, not raw t. Every frequency
+-      // in the water shader (`vUvS.x * 140.0`, the `* 400.0` churn) is a count of
+-      // cycles across whatever this spans, so feeding it raw t would stretch every
+-      // ripple by the same 3.2x the curve grew — the surface stops reading as
+-      // moving water and turns into slow rolling bands. Scaling here keeps all of
+-      // those authored numbers meaning what they meant.
+-      uvs.push(t * LENGTH_RATIO, v);
+-      foamAttr.push(c);
+-      // local half-width, so the shader can size ripples and the shore foam
+-      // band in world units rather than across the normalized uv — the channel
+-      // runs from ~3 to ~43 wide, and uv-space noise smears into stripes
+-      widthAttr.push(w);
+-      // Water depth: 0 at the shoreline -> 1 over the deep middle, driving the
+-      // clarity gradient. Taken from the same analytic profile that carves the
+-      // bed rather than by resampling terrainHeight, whose bank wobble made
+-      // this jump from vertex to vertex.
++    const tl = Math.hypot(tan.x, tan.z) || 1;
++    const hw = halfWidthAt(t) + 1.8;
++    const lvl = levelAt(t);
++    const casc = cascadeAt(t);
++    const nar = narrownessAt(t);
++    const foam = Math.min(1, casc * 1.15 + nar * 0.25);
++
++    for (let k = 0; k <= STEPS; k++) {
++      const v = k / STEPS;
++      const lat = (v * 2 - 1) * hw;
+       const cross = Math.abs(v * 2 - 1);
+-      depthAttr.push(THREE.MathUtils.clamp((bedDepth(cross) - 0.4) / 1.2, 0, 1));
++      positions.push(p.x + (bx / bl) * lat, lvl, p.z + (bz / bl) * lat);
++      uvs.push(t, v);
++      foamAttr.push(foam);
++      depthAttr.push(Math.max(0, 1 - cross * cross));
++      widthAttr.push(hw);
++      // downstream flow vector (-tan.x, -tan.z)
++      flowAttr.push(-tan.x / tl, -tan.z / tl);
+     }
+     if (i < SEGS) {
+-      const row = COLS + 1;
+-      for (let k = 0; k < COLS; k++) {
++      const row = STEPS + 1;
++      for (let k = 0; k < STEPS; k++) {
+         const a = i * row + k;
+-        // cross-channel edge first, then downstream: the other winding points
+-        // the normals at the streambed and the whole surface gets back-face
+-        // culled away
+         index.push(a, a + 1, a + row, a + row, a + 1, a + row + 1);
+       }
+     }
+   }
++
+   const geo = new THREE.BufferGeometry();
+   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+-  geo.setAttribute('aUv', new THREE.Float32BufferAttribute(uvs, 2));
++  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+   geo.setAttribute('aFoam', new THREE.Float32BufferAttribute(foamAttr, 1));
+   geo.setAttribute('aDepth', new THREE.Float32BufferAttribute(depthAttr, 1));
+   geo.setAttribute('aWidth', new THREE.Float32BufferAttribute(widthAttr, 1));
++  geo.setAttribute('aFlow', new THREE.Float32BufferAttribute(flowAttr, 2));
+   geo.setIndex(index);
+   geo.computeVertexNormals();
+ 
+-  const uniforms = { uTime: { value: 0 } };
+-  const mat = new THREE.MeshStandardMaterial({
+-    transparent: true,
+-    roughness: 0.16,
+-    metalness: 0.0,
++  const loader = new THREE.TextureLoader();
++  const normalMap = loader.load('./waternormals.jpg', (tex) => {
++    tex.wrapS = THREE.RepeatWrapping;
++    tex.wrapT = THREE.RepeatWrapping;
++    tex.needsUpdate = true;
+   });
+-  mat.onBeforeCompile = (shader) => {
+-    shader.uniforms.uTime = uniforms.uTime;
+-    shader.vertexShader = `
++  normalMap.wrapS = THREE.RepeatWrapping;
++  normalMap.wrapT = THREE.RepeatWrapping;
++
++  const uniforms = {
++    uTime: { value: 0 },
++    uNormalMap: { value: normalMap },
++    uSkyTop: { value: world ? world.PALETTE.skyTop.clone() : new THREE.Color('#4b8fce') },
++    uSkyMid: { value: world ? world.PALETTE.skyMid.clone() : new THREE.Color('#a8d0e4') },
++    uSkyBottom: { value: world ? world.PALETTE.skyBottom.clone() : new THREE.Color('#f7c983') },
++    uSunColor: { value: world ? world.PALETTE.sun.clone() : new THREE.Color('#ffd9a0') },
++    uSunDir: { value: world ? world.sunDir.clone() : new THREE.Vector3(60, 92, -120).normalize() },
++    uSunIntensity: { value: world ? world.sun.intensity : 3.2 },
++    uRippleStrength: { value: 1.0 },
++  };
++
++  const mat = new THREE.ShaderMaterial({
++    uniforms,
++    transparent: true,
++    depthWrite: false,
++    side: THREE.DoubleSide,
++    userData: { noToon: true },
++    vertexShader: /* glsl */ `
+       attribute float aFoam;
+-      attribute vec2 aUv;
+       attribute float aDepth;
+       attribute float aWidth;
++      attribute vec2 aFlow;
++
+       varying float vFoam;
+-      varying vec2 vUvS;
++      varying vec2 vUv;
+       varying float vDepth;
+       varying float vWidth;
++      varying vec2 vFlow;
++      varying vec3 vWorldPos;
++      varying vec3 vWorldNormal;
++
+       uniform float uTime;
+-    ` + shader.vertexShader.replace(
+-      '#include <begin_vertex>',
+-      `#include <begin_vertex>
+-       vFoam = aFoam;
+-       vUvS = aUv;
+-       vDepth = aDepth;
+-       vWidth = aWidth;
+-       // churned surface on the cascades
+-       transformed.y += aFoam * 0.09 * sin(aUv.x * 400.0 + uTime * 6.0);`
+-    );
+-    shader.fragmentShader = `
++      uniform float uRippleStrength;
++
++      void main() {
++        vFoam = aFoam;
++        vUv = uv;
++        vDepth = aDepth;
++        vWidth = aWidth;
++        vFlow = aFlow;
++
++        vec3 pos = position;
++        vec4 worldPos = modelMatrix * vec4(pos, 1.0);
++
++        // Gentle physical surface wavelets + churned cascade crest
++        float wave1 = sin(worldPos.x * 0.45 + worldPos.z * 0.35 + uTime * 1.9) * 0.028;
++        float wave2 = cos(worldPos.x * 0.9 - worldPos.z * 0.7 + uTime * 2.5) * 0.016;
++        float cascadeWave = aFoam * 0.09 * sin(uv.x * 420.0 + uTime * 6.5);
++        pos.y += (wave1 + wave2) * vDepth * uRippleStrength + cascadeWave;
++
++        worldPos = modelMatrix * vec4(pos, 1.0);
++        vWorldPos = worldPos.xyz;
++        vWorldNormal = normalize(mat3(modelMatrix) * normal);
++
++        gl_Position = projectionMatrix * viewMatrix * worldPos;
++      }
++    `,
++    fragmentShader: /* glsl */ `
+       varying float vFoam;
+-      varying vec2 vUvS;
++      varying vec2 vUv;
+       varying float vDepth;
+       varying float vWidth;
++      varying vec2 vFlow;
++      varying vec3 vWorldPos;
++      varying vec3 vWorldNormal;
++
+       uniform float uTime;
+-      float gFoam = 0.0;
+-      float gAgit = 0.0;
+-      // Cross-channel noise frequencies were authored against the uv, which
+-      // only held together while the channel was a near-constant ~14 units
+-      // wide. CROSS() converts a uv-space frequency into the world-space one
+-      // that matched at that reference width, so ripples keep their real size
+-      // whether the water is a 4-unit chute or the 43-unit lake.
+-      #define CROSS(f) (vUvS.y * vWidth * 2.0 * ((f) / 14.0))
+-      // fract() first, before any multiply: uTime accumulates without bound, so
+-      // after a minute or two the noise coordinate is in the hundreds and
+-      // sin(dot(p, ...)) of that loses all float32 precision — the lattice
+-      // degenerates and the surface breaks into hard-edged shards.
+-      float hashW(vec2 p){
++      uniform sampler2D uNormalMap;
++      uniform vec3 uSkyTop;
++      uniform vec3 uSkyMid;
++      uniform vec3 uSkyBottom;
++      uniform vec3 uSunColor;
++      uniform vec3 uSunDir;
++      uniform float uSunIntensity;
++      uniform float uRippleStrength;
++
++      float hashW(vec2 p) {
+         p = fract(p * vec2(0.3183099, 0.3678794) + vec2(0.1, 0.17));
+         p *= 17.0;
+         return fract(p.x * p.y * (p.x + p.y));
+       }
+-      float noiseW(vec2 p){
++
++      float noiseW(vec2 p) {
+         vec2 i = floor(p), f = fract(p);
+-        // quintic rather than the usual smoothstep: the normal below is built
+-        // from finite differences of this, and a merely C1 interpolant leaves a
+-        // visible crease along every cell boundary once there is a specular on it
+         f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+-        return mix(mix(hashW(i), hashW(i + vec2(1,0)), f.x),
+-                   mix(hashW(i + vec2(0,1)), hashW(i + vec2(1,1)), f.x), f.y);
++        return mix(
++          mix(hashW(i), hashW(i + vec2(1.0, 0.0)), f.x),
++          mix(hashW(i + vec2(0.0, 1.0)), hashW(i + vec2(1.0, 1.0)), f.x),
++          f.y
++        );
+       }
+-    ` + shader.fragmentShader
+-      .replace(
+-        '#include <color_fragment>',
+-        `#include <color_fragment>
+-      {
+-        float u = vUvS.x * 140.0;
+-        float v = vUvS.y;
+-        float crossW = abs(v * 2.0 - 1.0);
+-        // anisotropic ripple layers, all streaming downstream
+-        float f1 = noiseW(vec2(u * 0.7 + uTime * 1.4, CROSS(10.0)));
+-        float f2 = noiseW(vec2(u * 1.8 + uTime * 3.2, CROSS(24.0) + 5.0));
+-        // rotated domain: the fleck threshold below turns this into discrete
+-        // specks, and on an axis-aligned lattice they line up into rows across
+-        // the flow — plainly visible once the water is wide and calm
+-        float f3 = noiseW(mat2(0.8, -0.6, 0.6, 0.8) * vec2(u * 3.8 + uTime * 5.5, CROSS(48.0) + 13.0));
+-        gAgit = clamp(0.35 + vFoam, 0.0, 1.0);
+-        // clear glassy water: pale over the shallows, teal over the deep middle
+-        vec3 deepC = vec3(0.17, 0.31, 0.28);
+-        vec3 shalC = vec3(0.48, 0.58, 0.52);
+-        vec3 wcol = mix(shalC, deepC, vDepth * (0.7 + 0.3 * f1));
+-        // cascade foam broken into long streaks by stretched noise
+-        float streak = noiseW(vec2(u * 2.4 + uTime * 4.2, CROSS(14.0)));
+-        float casc = vFoam * smoothstep(0.25, 0.72, streak * 0.55 + f2 * 0.45);
+-        // streaming white flecks — sparse in the pools, dense in the rush
+-        float fleck = smoothstep(0.8 - vFoam * 0.25, 0.97, f2 * 0.5 + f3 * 0.5);
+-        // broken foam line where the water meets the banks — a fixed ~1.8 unit
+-        // band, not a fraction of the width, or the lake gets a 6-unit fringe
+-        float shore = (1.0 - crossW) * vWidth;
+-        float edge = smoothstep(1.82, 0.28, shore) * smoothstep(0.35, 0.75, f3);
+-        gFoam = clamp(casc * 1.25 + fleck * (0.2 + 0.6 * gAgit) + edge * 0.7, 0.0, 1.0);
+-        wcol = mix(wcol, vec3(0.96, 0.98, 0.96), gFoam);
+-        diffuseColor.rgb = wcol;
+-        // transparency sells the clarity: nearly glass at the shallows,
+-        // still translucent over depth, opaque only where it froths
+-        diffuseColor.a = clamp(mix(0.14, 0.46, vDepth) + gFoam * 0.9, 0.0, 1.0);
+-      }`
+-      )
+-      .replace(
+-        '#include <normal_fragment_begin>',
+-        `#include <normal_fragment_begin>
+-      {
+-        // streaming ripple bumps -> the sun glitter slides downstream
+-        float u = vUvS.x * 140.0;
+-        float v = vUvS.y;
+-        // one epsilon, equal on both axes, so the gradient is not biased toward
+-        // the downstream direction
+-        float e = 0.46;
+-        float n0 = noiseW(vec2(u * 2.1 + uTime * 2.8, CROSS(30.0)));
+-        float nx = noiseW(vec2(u * 2.1 + e + uTime * 2.8, CROSS(30.0)));
+-        float nz = noiseW(vec2(u * 2.1 + uTime * 2.8, CROSS(30.0) + e));
+-        vec3 bump = vec3(nx - n0, 0.0, nz - n0) * (1.6 + 2.2 * gAgit) * (1.0 - gFoam * 0.7);
+-        normal = normalize(normal + bump);
+-      }`
+-      )
+-      .replace(
+-        '#include <roughnessmap_fragment>',
+-        `#include <roughnessmap_fragment>
+-        roughnessFactor = mix(0.12, 0.85, gFoam);`
+-      )
+-      .replace(
+-        '#include <emissivemap_fragment>',
+-        `#include <emissivemap_fragment>
+-      {
+-        // sun sparkle riding the current — rotated noise domains so the
+-        // glints stay point-like instead of forming axis-aligned zigzags
+-        float su = vUvS.x * 140.0;
+-        float sp  = noiseW(vec2(su * 2.6 + CROSS(31.0) + uTime * 6.0, su * 1.1 - CROSS(47.0)));
+-        float sp2 = noiseW(vec2(su * 1.9 - CROSS(39.0) - uTime * 4.2, su * 2.3 + CROSS(27.0) + 7.0));
+-        float glint = smoothstep(0.80, 0.97, sp * sp2 * 1.7);
+-        totalEmissiveRadiance += vec3(1.0, 1.0, 0.92) * glint * (0.25 + 0.85 * gAgit);
+-      }`
+-      );
+-  };
++
++      vec3 sampleSky(vec3 dir) {
++        float h = clamp(dir.y, 0.0, 1.0);
++        vec3 c = mix(uSkyBottom, uSkyMid, smoothstep(0.0, 0.22, h));
++        c = mix(c, uSkyTop, smoothstep(0.14, 0.58, h));
++        // subtle warm horizon bounce & treeline reflection tint near y ~ 0
++        vec3 bankTint = mix(vec3(0.16, 0.24, 0.15), uSkyBottom, 0.45);
++        c = mix(bankTint, c, smoothstep(-0.04, 0.09, dir.y));
++        // soft sun aureole in sky reflection
++        float sunAmt = max(dot(normalize(dir), normalize(uSunDir)), 0.0);
++        c += uSunColor * pow(sunAmt, 14.0) * 0.45 * (uSunIntensity / 3.2);
++        return c;
++      }
++
++      void main() {
++        vec3 viewVec = cameraPosition - vWorldPos;
++        float dist = length(viewVec);
++        vec3 V = viewVec / max(dist, 0.0001);
++
++        // Wrap time cleanly so long sessions never lose float32 precision
++        float t1 = fract(uTime * 0.028);
++        float t2 = fract(uTime * 0.019);
++
++        // World-space dual-octave normal map sampling + downstream advection
++        vec2 flowOffset = normalize(vFlow + vec2(0.0001)) * fract(uTime * 0.065) * 1.4;
++        vec2 uv1 = vWorldPos.xz * 0.095 + vec2(t1 * 1.2, -t1 * 0.8) + flowOffset * 0.45;
++        vec2 uv2 = vWorldPos.xz * 0.21  + vec2(-t2 * 1.4, t2 * 1.1) + flowOffset * 0.85;
++        vec2 uv3 = vWorldPos.xz * 0.48  + vec2(t1 * 2.1, t2 * 1.7) + flowOffset * 1.2;
++
++        vec3 n1 = texture2D(uNormalMap, uv1).xyz * 2.0 - 1.0;
++        vec3 n2 = texture2D(uNormalMap, uv2).xyz * 2.0 - 1.0;
++        vec3 n3 = texture2D(uNormalMap, uv3).xyz * 2.0 - 1.0;
++
++        // Distance fade on high-frequency normal octave to prevent horizon aliasing
++        float detailFade = 1.0 - smoothstep(25.0, 140.0, dist);
++        vec3 tangentN = normalize(vec3(
++          (n1.x * 0.55 + n2.x * 0.35 + n3.x * 0.22 * detailFade),
++          (n1.y * 0.55 + n2.y * 0.35 + n3.y * 0.22 * detailFade),
++          1.45
++        ));
++
++        // Perturb world normal (water plane is mostly +Y, tilted slightly on cascades)
++        float normalScale = (0.34 + 0.38 * vFoam) * uRippleStrength;
++        vec3 N = normalize(vWorldNormal + vec3(tangentN.x, 0.0, tangentN.y) * normalScale);
++
++        // Schlick Fresnel (water IOR 1.333 -> F0 ~ 0.02)
++        float NdotV = clamp(dot(N, V), 0.0, 1.0);
++        float fresnel = 0.02 + 0.98 * pow(1.0 - NdotV, 5.0);
++        fresnel = clamp(fresnel * 0.92 + 0.04, 0.0, 0.96);
++
++        // Environment reflection
++        vec3 R = reflect(-V, N);
++        R.y = abs(R.y) * 0.92 + 0.02;
++        vec3 skyRefl = sampleSky(R);
++
++        // Beer-Lambert depth absorption for realistic emerald-teal water body
++        float waterDepth = mix(0.18, 1.85, vDepth);
++        vec3 absorption = exp(-waterDepth * vec3(0.55, 0.16, 0.18));
++        vec3 shallowTint = vec3(0.42, 0.58, 0.50);
++        vec3 deepTint = vec3(0.05, 0.20, 0.21);
++        vec3 bodyColor = mix(deepTint, shallowTint, absorption);
++
++        // Subtle subsurface scattering when backlit by the sun
++        vec3 L = normalize(uSunDir);
++        float sss = pow(clamp(dot(V, -L + N * 0.45), 0.0, 1.0), 3.0);
++        bodyColor += vec3(0.08, 0.28, 0.24) * sss * (0.4 + 0.6 * vDepth) * (uSunIntensity / 3.2);
++
++        // Crisp sun specular glints (tight core + soft sheen)
++        vec3 H = normalize(L + V);
++        float NdotH = max(dot(N, H), 0.0);
++        float specTight = pow(NdotH, 380.0) * 2.8;
++        float specBroad = pow(NdotH, 46.0) * 0.22;
++        vec3 specular = uSunColor * (specTight + specBroad) * (uSunIntensity / 3.2) * (1.0 - vFoam * 0.75);
++
++        // Organic shoreline & cascade foam
++        float crossW = abs(vUv.y * 2.0 - 1.0);
++        float shoreDist = (1.0 - crossW) * vWidth;
++        float foamNoise1 = noiseW(vWorldPos.xz * 1.45 + flowOffset * 2.4);
++        float foamNoise2 = noiseW(vWorldPos.xz * 3.8 - flowOffset * 3.1);
++        float foamPattern = foamNoise1 * 0.6 + foamNoise2 * 0.4;
++
++        float cascadeFoam = vFoam * smoothstep(0.26, 0.72, foamPattern);
++        float shoreFoam = smoothstep(1.45, 0.18, shoreDist) * smoothstep(0.42, 0.78, foamPattern) * 0.55;
++        float crestFoam = smoothstep(0.76, 0.94, foamNoise2) * vFoam * 0.45;
++        float totalFoam = clamp(cascadeFoam * 1.15 + shoreFoam + crestFoam, 0.0, 1.0);
++
++        vec3 waterCol = mix(bodyColor, skyRefl, fresnel) + specular;
++        vec3 foamCol = mix(vec3(0.84, 0.91, 0.93), vec3(0.98, 0.99, 0.98), foamNoise2) * (0.65 + 0.35 * (uSunIntensity / 3.2));
++        vec3 finalCol = mix(waterCol, foamCol, totalFoam);
++
++        // Transparency: crystal-clear in shallows & steep angles, opaque at grazing angles & foam
++        float alpha = mix(0.28, 0.74, vDepth);
++        alpha = max(alpha, fresnel * 0.88);
++        alpha = clamp(alpha + totalFoam * 0.85, 0.0, 0.98);
++
++        gl_FragColor = vec4(finalCol, alpha);
++        #include <tonemapping_fragment>
++        #include <colorspace_fragment>
++      }
++    `,
++  });
+ 
+   const mesh = new THREE.Mesh(geo, mat);
++  mesh.renderOrder = 2;
+   mesh.receiveShadow = true;
+   return { mesh, uniforms };
+ }
+ 
+-// Sandy pebble bed carved below the waterline — the clear water reads as
+-// water precisely because this is visible through it.
+ function buildBedRibbon() {
+   const SEGS = RIBBON_SEGS;
+   const STEPS = 6;
+@@ -448,21 +459,14 @@ function buildBedRibbon() {
+       const lat = (v * 2 - 1) * hw;
+       const cross = Math.abs(v * 2 - 1);
+       positions.push(p.x + (bx / bl) * lat, lvl - bedDepth(cross), p.z + (bz / bl) * lat);
+-      // 90 repeats of the pebble texture were tuned against the original curve, so
+-      // the count has to grow with the length or the gravel stretches 3.2x.
+       uvs.push(t * 90 * LENGTH_RATIO, v * 3);
+-      // slightly dimmer toward the deep centre line
+-      const shade = 1.0 - (1 - cross) * 0.3;
++      const shade = 1.0 - (1 - cross) * 0.32;
+       colors.push(shade, shade, shade);
+     }
+     if (i < SEGS) {
+       const row = STEPS + 1;
+       for (let k = 0; k < STEPS; k++) {
+         const a = i * row + k;
+-        // cross-channel edge first, then downstream. The other way round faces
+-        // the triangles downward, and this whole ribbon — the sandy bed the
+-        // clear water is supposed to read against — was being back-face culled
+-        // and never drawn at all.
+         index.push(a, a + 1, a + row, a + row, a + 1, a + row + 1);
+       }
+     }
+@@ -474,15 +478,52 @@ function buildBedRibbon() {
+   geo.setIndex(index);
+   geo.computeVertexNormals();
+ 
++  const uniforms = {
++    uTime: { value: 0 },
++    uSunIntensity: { value: 3.2 },
++  };
++
+   const mat = new THREE.MeshStandardMaterial({
+     map: makeBedTexture(),
+     vertexColors: true,
+-    roughness: 1.0,
++    roughness: 0.96,
+     metalness: 0.0,
+   });
++
++  // Animated underwater sunlit caustics on the pebble bed
++  mat.onBeforeCompile = (shader) => {
++    shader.uniforms.uTime = uniforms.uTime;
++    shader.uniforms.uSunIntensity = uniforms.uSunIntensity;
++    shader.vertexShader = `
++      varying vec3 vBedWorldPos;
++    ` + shader.vertexShader.replace(
++      '#include <worldpos_vertex>',
++      `#include <worldpos_vertex>
++       vBedWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
++    );
++    shader.fragmentShader = `
++      varying vec3 vBedWorldPos;
++      uniform float uTime;
++      uniform float uSunIntensity;
++      float causticPattern(vec2 p, float t) {
++        vec2 a = p * 0.85 + vec2(t * 0.35, -t * 0.25);
++        vec2 b = p * 1.15 - vec2(t * 0.28, t * 0.42);
++        float c1 = abs(sin(a.x + sin(a.y * 1.4)) + cos(a.y + cos(a.x * 1.3)));
++        float c2 = abs(sin(b.x * 1.2 - cos(b.y)) + cos(b.y * 1.1 + sin(b.x)));
++        float net = 1.0 - smoothstep(0.0, 0.55, min(c1, c2));
++        return pow(net, 2.2);
++      }
++    ` + shader.fragmentShader.replace(
++      '#include <emissivemap_fragment>',
++      `#include <emissivemap_fragment>
++       float caust = causticPattern(vBedWorldPos.xz, uTime);
++       totalEmissiveRadiance += vec3(0.45, 0.62, 0.52) * caust * 0.32 * (uSunIntensity / 3.2);`
++    );
++  };
++
+   const mesh = new THREE.Mesh(geo, mat);
+   mesh.receiveShadow = true;
+-  return mesh;
++  return { mesh, uniforms };
+ }
+ 
+ function buildRockGeo() {
+diff --git a/src/style.css b/src/style.css
+index 01abc09..448334b 100644
+--- a/src/style.css
++++ b/src/style.css
+@@ -1,13 +1,192 @@
+-* { margin: 0; padding: 0; box-sizing: border-box; }
+-html, body { width: 100%; height: 100%; overflow: hidden; background: #1a2410; }
+-canvas { display: block; }
+-#info {
++:root {
++  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
++  --font-serif: 'Cormorant Garamond', Georgia, serif;
++  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
++}
++
++* {
++  margin: 0;
++  padding: 0;
++  box-sizing: border-box;
++}
++
++html,
++body {
++  width: 100%;
++  min-height: 100dvh;
++  height: 100%;
++  overflow: hidden;
++  background: #141c10;
++  font-family: var(--font-sans);
++  -webkit-font-smoothing: antialiased;
++}
++
++canvas {
++  display: block;
++}
++
++.bezel-outer {
++  padding: 5px;
++  border-radius: 26px;
++  background: rgba(16, 22, 16, 0.28);
++  border: 1px solid rgba(255, 255, 255, 0.14);
++  backdrop-filter: blur(22px);
++  -webkit-backdrop-filter: blur(22px);
++  box-shadow: 0 18px 48px rgba(8, 12, 8, 0.28);
++}
++
++.bezel-inner {
++  border-radius: 21px;
++  background: rgba(14, 19, 14, 0.56);
++  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.16);
++}
++
++.brand-badge {
+   position: fixed;
+-  left: 14px;
+-  top: 12px;
+-  z-index: 10;
+-  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+-  color: rgba(223, 232, 190, 0.72);
++  top: 18px;
++  left: 18px;
++  z-index: 20;
+   pointer-events: none;
+-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
++}
++
++.brand-inner {
++  padding: 12px 18px;
++  display: flex;
++  flex-direction: column;
++  gap: 2px;
++}
++
++.eyebrow {
++  font-size: 10px;
++  font-weight: 600;
++  letter-spacing: 0.18em;
++  text-transform: uppercase;
++  color: rgba(247, 201, 131, 0.88);
++}
++
++.title {
++  font-family: var(--font-serif);
++  font-size: 22px;
++  font-weight: 600;
++  letter-spacing: 0.01em;
++  color: rgba(252, 249, 242, 0.96);
++  line-height: 1.15;
++}
++
++.hint {
++  margin-top: 3px;
++  font-size: 11px;
++  color: rgba(226, 232, 218, 0.72);
++  letter-spacing: 0.01em;
++}
++
++.hud-dock {
++  position: fixed;
++  bottom: 20px;
++  left: 50%;
++  transform: translateX(-50%);
++  z-index: 20;
++  max-width: calc(100vw - 24px);
++}
++
++.dock-outer {
++  border-radius: 999px;
++}
++
++.dock-inner {
++  border-radius: 999px;
++  padding: 6px 10px;
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  overflow-x: auto;
++  scrollbar-width: none;
++}
++
++.dock-inner::-webkit-scrollbar {
++  display: none;
++}
++
++.control-group {
++  display: flex;
++  align-items: center;
++  gap: 4px;
++  flex-shrink: 0;
++}
++
++.group-label {
++  font-size: 10px;
++  font-weight: 600;
++  text-transform: uppercase;
++  letter-spacing: 0.14em;
++  color: rgba(226, 232, 218, 0.56);
++  padding: 0 6px 0 8px;
++}
++
++.divider {
++  width: 1px;
++  height: 18px;
++  background: rgba(255, 255, 255, 0.14);
++  flex-shrink: 0;
++}
++
++.pill-btn {
++  appearance: none;
++  border: 1px solid transparent;
++  background: transparent;
++  color: rgba(242, 244, 238, 0.78);
++  font-family: var(--font-sans);
++  font-size: 12px;
++  font-weight: 500;
++  padding: 7px 13px;
++  border-radius: 999px;
++  cursor: pointer;
++  white-space: nowrap;
++  transition: transform 0.45s var(--ease-fluid), background-color 0.45s var(--ease-fluid), color 0.45s var(--ease-fluid), border-color 0.45s var(--ease-fluid);
++}
++
++.pill-btn:hover {
++  color: #ffffff;
++  background: rgba(255, 255, 255, 0.1);
++}
++
++.pill-btn:active {
++  transform: scale(0.96);
++}
++
++.pill-btn.is-active {
++  background: rgba(247, 201, 131, 0.22);
++  border-color: rgba(247, 201, 131, 0.45);
++  color: #fff6e6;
++}
++
++@media (max-width: 768px) {
++  .brand-badge {
++    top: 12px;
++    left: 12px;
++    right: 12px;
++  }
++  .title {
++    font-size: 19px;
++  }
++  .hint {
++    display: none;
++  }
++  .hud-dock {
++    bottom: 12px;
++    width: calc(100vw - 24px);
++  }
++  .dock-outer,
++  .dock-inner {
++    border-radius: 22px;
++  }
++  .dock-inner {
++    padding: 8px 10px;
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .pill-btn {
++    transition: none;
++  }
+ }
+diff --git a/src/toon.js b/src/toon.js
+index 5657df5..18fb381 100644
+--- a/src/toon.js
++++ b/src/toon.js
+@@ -1,96 +1,31 @@
+ import * as THREE from 'three';
+ 
+-// Cel shading in the Genshin / Breath of the Wild mould, applied to whatever
+-// materials the scene modules already built — no geometry changes at all.
+-//
+-// That look is not "posterised realism", it is a specific lighting model:
+-//
+-//   1. TWO TONES, split by a hard terminator. Not a gradient with steps in it —
+-//      a lit plateau and a shadow plateau, with a couple of pixels between.
+-//   2. WARM LIGHT, COOL SHADOW. The shadow side is not the lit side made
+-//      darker, it is tinted blue-violet, because it is lit by the sky instead
+-//      of by the sun. This single split is most of what people read as "the
+-//      Genshin look".
+-//   3. RIM LIGHT. A bright edge where a surface turns away from the camera,
+-//      which is what separates one tree from the tree behind it and stops a
+-//      forest from reading as mush.
+-//
+-// The patch hooks `lights_fragment_end`, where the direct (sun) and indirect
+-// (sky) contributions are still SEPARATE — that separation is what makes the
+-// warm/cool split and the hard terminator possible. Patching the final colour
+-// instead can only quantise the two summed together, which is why the previous
+-// pass barely showed.
+ const LIT = new Set(['MeshStandardMaterial', 'MeshPhysicalMaterial', 'MeshLambertMaterial', 'MeshPhongMaterial']);
+ 
+ const DEFAULTS = {
+-  // Where the terminator sits, in "how sun-dominated is this pixel" terms.
+-  // The sky fill is much stronger now than when these were tuned, so `t` runs
+-  // lower across the whole frame and the edge has to come down with it or the
+-  // lit plateau shrinks to the few surfaces facing the sun dead-on.
+   edge: 0.2,
+-  // Wider than a knife edge. A 0.04 terminator on every leaf mass is what tips
+-  // the look from painterly into flat cartoon; 0.1 still separates the two
+-  // tones but lets the turn read as a form turning.
+   width: 0.1,
+-  // Shadow side: cool and clearly readable. It is LIFTED, not darkened — in
+-  // this style the dark half of a tree is a mid-blue-green you can still read
+-  // every leaf in, which is the opposite of a photographic shadow.
+-  // Cool, but not as blue as it was. #9fb8e8 has enough chroma that it turns
+-  // brown into violet, and since a trunk's whole value comes from this term
+-  // every trunk in the frame read as a cold purple bar. Pulling the chroma
+-  // down keeps the crowns' shadow side reading as sky-lit without repainting
+-  // the wood.
+   shadow: new THREE.Color('#b4bfdb'),
+-  // Lifted from 1.25. A trunk stands inside its own crown's cast shadow, so it
+-  // receives no sun at all and its entire value comes from this term — at 1.25
+-  // the trunks read as black bars between the crowns.
+   shadowLevel: 1.5,
+-  // lit side: warm gold, matching the low sun rather than a white noon one
+   warm: new THREE.Color('#ffe6b8'),
+   litBoost: 1.16,
+-  // Rim, warm now instead of cool white. With the sun low and ahead this is
+-  // doing backlight — the gold edge on a crown against the sky — so a cool rim
+-  // fought the light direction and read as a drawn outline.
+   rim: 0.62,
+   rimPower: 2.4,
+   rimColor: new THREE.Color('#ffdca4'),
+-  // 1.42 was pushing the greens to poster paint. The colour now comes from the
+-  // warm/cool light split, which does not need help from a saturation boost.
+   sat: 1.15,
+-  // Minimum fraction of a surface's own albedo that survives with no light on
+-  // it at all. 0 for everything by default — an unlit rock SHOULD go dark. The
+-  // canopy overrides it (see below) because leaves are translucent.
+   floor: 0,
+ };
+ 
+-// Every material this module has already patched. Shared by both entry points, so
+-// a material handed over early is not patched again when the scene walk reaches
+-// it — patching twice would inject the shader chunk twice.
+ const done = new Set();
+ 
+ function toonifyOne(mat, p) {
+-  if (!mat || done.has(mat) || !LIT.has(mat.type)) return;
++  if (!mat || done.has(mat) || !LIT.has(mat.type) || mat.userData?.noToon) return;
+   done.add(mat);
+-  // Leaves are translucent: a leaf with the sun behind it glows rather than
+-  // going black, and the inner wall of a pierced crown is exactly that case —
+-  // it faces away from the key and would otherwise be lit by the sky term
+-  // alone. `floor` stands in for the transmission, keeping those surfaces at a
+-  // mid tone. Measured effect on the frame's near-black share is small (~0.5
+-  // points); it earns its place on the near crowns, where the alternative is
+-  // dark pits between the leaf clusters.
+   patch(mat, mat.userData.canopy ? { ...p, shadowLevel: p.shadowLevel * 1.2, floor: 0.34 } : p);
+-  // a drawn surface has no glossy roll-off
+   mat.roughness = 1;
+   mat.metalness = 0;
+ }
+ 
+-// Cel-shade an explicit list of materials.
+-//
+-// `toonify(scene)` finds its work by walking the scene, which only sees what has
+-// already been added. Streamed layers build their cells later, so their shared
+-// materials have to be handed over directly — otherwise they keep the stock
+-// Standard shading and read as a flatter, duller surface than everything the
+-// startup pass caught, which is glaring when it is the ground the rest sits on.
+ export function toonifyMaterials(mats, opts = {}) {
+   const p = { ...DEFAULTS, ...opts };
+   for (const mat of mats) toonifyOne(mat, p);
+@@ -111,33 +46,17 @@ function patch(mat, p) {
+     {
+       float dl = dot(reflectedLight.directDiffuse, vec3(0.2126, 0.7152, 0.0722));
+       float il = dot(reflectedLight.indirectDiffuse, vec3(0.2126, 0.7152, 0.0722));
+-      // How sun-dominated this pixel is. Using the RATIO rather than the raw sun
+-      // level makes the terminator land in the same place on a bright meadow and
+-      // on dark bark, and keeps it independent of light intensity.
+       float t = dl / (dl + il + 1e-4);
+       float k = smoothstep(${(p.edge - p.width).toFixed(4)}, ${(p.edge + p.width).toFixed(4)}, t);
+ 
+-      // Flatten the sun's cosine falloff onto a plateau: dividing by t lifts the
+-      // dimly-lit pixels up to the level of the fully-lit ones, so the lit side
+-      // becomes one flat tone instead of a gradient.
+       vec3 sun = reflectedLight.directDiffuse * min(${p.litBoost.toFixed(3)} * k / max(t, 0.14), 3.2);
+       reflectedLight.directDiffuse = sun * ${c(p.warm)};
+-
+-      // the shadow side is sky-lit, so it goes cool rather than merely dark
+       reflectedLight.indirectDiffuse *= mix(${c(p.shadow)} * ${p.shadowLevel.toFixed(3)}, vec3(1.0), k);
+ 
+-      // rim: a bright edge where the surface turns away from the eye, held back
+-      // in shadow so it reads as light wrapping the form, not as an outline
+       float rim = pow(1.0 - clamp(dot(geometryNormal, geometryViewDir), 0.0, 1.0), ${p.rimPower.toFixed(2)});
+       reflectedLight.directDiffuse += ${c(p.rimColor)} * (rim * ${p.rim.toFixed(3)} * (0.25 + 0.75 * k)) * diffuseColor.rgb;
+-
+-      // Translucency floor. Leaves are thin and let light through, so a leaf
+-      // surface with the sun behind it glows instead of going black — which is
+-      // what the inner wall of a pierced crown is doing. Without this the holes
+-      // in the canopy read as black specks and undo the openwork.
+       reflectedLight.indirectDiffuse += diffuseColor.rgb * ${p.floor.toFixed(3)};
+ 
+-      // flat tones read washed out next to a photographic gradient
+       vec3 tot = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;
+       float grey = dot(tot, vec3(0.2126, 0.7152, 0.0722));
+       vec3 boosted = max(mix(vec3(grey), tot, ${p.sat.toFixed(3)}), vec3(0.0));
+@@ -155,8 +74,6 @@ function patch(mat, p) {
+       '#include <lights_fragment_end>\n' + chunk
+     );
+   };
+-  // Without folding the previous key in, every material that shared a program
+-  // before (all the wind foliage) would collapse onto one cached program again.
+   mat.customProgramCacheKey = function () {
+     return `toon2-${p.edge}-${p.rim}-${p.floor}-${p.shadowLevel}-${prevKey ? prevKey.call(this) : mat.type}`;
+   };
+diff --git a/src/world.js b/src/world.js
+index 471bd75..9d712ae 100644
+--- a/src/world.js
++++ b/src/world.js
+@@ -1,100 +1,100 @@
+ import * as THREE from 'three';
+ 
+-// Late golden hour, sun low and almost in frame — the light the stylised-RPG
+-// look is actually built on.
+-//
+-// This scene used to be a blazing 2-3pm: hot white sun overhead, saturated blue
+-// zenith, and a near-white haze. That is the single biggest reason it read as
+-// harsh no matter what the trees did. Overhead light lands flat on top of every
+-// crown and leaves the sides in deep contrast, so a forest becomes a field of
+-// dark lumps with bright caps.
+-//
+-// The three things that make the reference look, in order of how much they
+-// matter:
+-//   1. WARM KEY FROM A MID HEIGHT. Not overhead, not grazing. A sun on the
+-//      horizon sounds right for "golden hour", but every horizontal surface —
+-//      meadow, crown tops, the water — then receives cos(12°) ≈ 0.2 of the key
+-//      and the whole frame falls to the shadow side of the terminator. That is
+-//      what made this scene read as cold dusk. ~35° keeps the ground and the
+-//      tops of the crowns in the warm plateau while still raking the crown
+-//      sides enough to give them a lit face, a shadow face, and a rim.
+-//   2. STRONG COOL SKY FILL. The shadow side is lit by a big violet-blue sky,
+-//      not merely darkened. Shadows stay open and readable — this is why the
+-//      style never has a black hole anywhere in frame.
+-//   3. GOLD PINNED TO THE HORIZON. The warm band has to sit AT the skyline and
+-//      give way to blue quickly, so the treeline is backed by light. Spread the
+-//      same two colours evenly over the dome instead and you get the pale
+-//      nothing-coloured sky this had.
+-// There is deliberately NO fog. Haze is the usual way to buy aerial perspective,
+-// but it washes the distance into a flat milky band, so depth here has to come
+-// from the light split and the crowns' own value range instead.
++export const ATMOSPHERES = {
++  golden: {
++    label: 'Golden Hour',
++    skyTop: new THREE.Color('#4b8fce'),
++    skyMid: new THREE.Color('#a8d0e4'),
++    skyBottom: new THREE.Color('#f7c983'),
++    sun: new THREE.Color('#ffd9a0'),
++    sunIntensity: 3.2,
++    sunPos: new THREE.Vector3(60, 92, -120),
++    ambSky: new THREE.Color('#a8bfe8'),
++    ambGround: new THREE.Color('#8a7a4a'),
++    hemiIntensity: 1.3,
++    ambientIntensity: 0.34,
++    exposure: 1.32,
++    lanternGlow: 0.85,
++  },
++  morning: {
++    label: 'Morning Mist',
++    skyTop: new THREE.Color('#6b9ec9'),
++    skyMid: new THREE.Color('#cbe2ea'),
++    skyBottom: new THREE.Color('#f4dcd0'),
++    sun: new THREE.Color('#fff0dc'),
++    sunIntensity: 2.6,
++    sunPos: new THREE.Vector3(-85, 68, -110),
++    ambSky: new THREE.Color('#c2d6eb'),
++    ambGround: new THREE.Color('#7a8768'),
++    hemiIntensity: 1.45,
++    ambientIntensity: 0.42,
++    exposure: 1.26,
++    lanternGlow: 0.45,
++  },
++  noon: {
++    label: 'Sunlit Noon',
++    skyTop: new THREE.Color('#2f78c4'),
++    skyMid: new THREE.Color('#8ac4e8'),
++    skyBottom: new THREE.Color('#d8eef5'),
++    sun: new THREE.Color('#fff8eb'),
++    sunIntensity: 3.4,
++    sunPos: new THREE.Vector3(35, 165, -75),
++    ambSky: new THREE.Color('#b6d4f2'),
++    ambGround: new THREE.Color('#7d8b58'),
++    hemiIntensity: 1.25,
++    ambientIntensity: 0.36,
++    exposure: 1.2,
++    lanternGlow: 0.15,
++  },
++  twilight: {
++    label: 'Twilight',
++    skyTop: new THREE.Color('#192447'),
++    skyMid: new THREE.Color('#4c4f7a'),
++    skyBottom: new THREE.Color('#d9886a'),
++    sun: new THREE.Color('#ff9d70'),
++    sunIntensity: 1.45,
++    sunPos: new THREE.Vector3(90, 32, -140),
++    ambSky: new THREE.Color('#6374a6'),
++    ambGround: new THREE.Color('#3b3c4d'),
++    hemiIntensity: 1.15,
++    ambientIntensity: 0.42,
++    exposure: 1.18,
++    lanternGlow: 3.4,
++  },
++};
++
+ const PALETTE = {
+-  skyTop: new THREE.Color('#4b8fce'),
+-  // Pale aqua band between the warm horizon and the blue zenith. Without this
+-  // middle stop the two-colour ramp mixes gold straight into blue and passes
+-  // through a dead grey-green on the way, which is exactly the washed-out band
+-  // the sky had before.
+-  skyMid: new THREE.Color('#a8d0e4'),
+-  // Deeper than it looks: ACES tone mapping at exposure 1.32 pulls the top of
+-  // this ramp towards white, so a lighter cream here washes the whole horizon
+-  // out to paper instead of reading as low sun.
+-  skyBottom: new THREE.Color('#f7c983'),
+-  // warm sun through low atmosphere: amber, not white
+-  sun: new THREE.Color('#ffd9a0'),
+-  // cool violet-blue sky fill, the other half of the warm/cool split
+-  ambSky: new THREE.Color('#a8bfe8'),
+-  ambGround: new THREE.Color('#8a7a4a'),
++  skyTop: ATMOSPHERES.golden.skyTop.clone(),
++  skyMid: ATMOSPHERES.golden.skyMid.clone(),
++  skyBottom: ATMOSPHERES.golden.skyBottom.clone(),
++  sun: ATMOSPHERES.golden.sun.clone(),
++  ambSky: ATMOSPHERES.golden.ambSky.clone(),
++  ambGround: ATMOSPHERES.golden.ambGround.clone(),
+ };
+ 
+-// Half-width of the sun's shadow box, in world units. 110 covers well past the
+-// grass radius while keeping a 1024 map at ~0.21 units per texel.
+ const SHADOW_EXTENT = 110;
+-// How far up the sun direction the light sits. Must clear the tallest crown plus
+-// the terrain relief, or near casters fall outside the depth slab.
+ const SHADOW_BACK_OFF = 260;
+ 
+ export function createWorld(scene) {
+   scene.background = PALETTE.skyBottom.clone();
+-  // No fog. Depth comes from the crowns' own value range and the warm/cool light
+-  // split instead — haze washing out the distance is not wanted here.
+ 
+   const sky = makeSkyDome();
+   scene.add(sky);
+ 
+-  // Cool sky fill: the shadow side has to stay open and readable, and it has to
+-  // be a DIFFERENT HUE from the sun rather than a darker version of it. Backed
+-  // off from 1.7 now that the key actually reaches the ground — at 1.7 the fill
+-  // out-voted the sun on every up-facing surface and pushed `t` in the cel
+-  // shader below the terminator across the whole meadow.
+-  const hemi = new THREE.HemisphereLight(PALETTE.ambSky, PALETTE.ambGround, 1.3);
++  const hemi = new THREE.HemisphereLight(PALETTE.ambSky, PALETTE.ambGround, ATMOSPHERES.golden.hemiIntensity);
+   scene.add(hemi);
+-  scene.add(new THREE.AmbientLight(new THREE.Color('#cdd4ea'), 0.34));
+-
+-  // Sun ahead of the camera so the light comes towards us and backlights the
+-  // stream, but ~35° up rather than on the horizon: high enough that ground and
+-  // crown tops sit in the warm plateau, low enough that the crown sides still
+-  // turn through a terminator instead of being uniformly capped.
+-  const sunPos = new THREE.Vector3(60, 92, -120);
+-  const sun = new THREE.DirectionalLight(PALETTE.sun, 3.2);
++  const ambient = new THREE.AmbientLight(new THREE.Color('#cdd4ea'), ATMOSPHERES.golden.ambientIntensity);
++  scene.add(ambient);
++
++  const sunPos = ATMOSPHERES.golden.sunPos.clone();
++  const sun = new THREE.DirectionalLight(PALETTE.sun, ATMOSPHERES.golden.sunIntensity);
+   sun.castShadow = true;
+   sun.shadow.mapSize.set(1024, 1024);
+-  // The shadow box FOLLOWS THE CAMERA rather than covering a fixed field.
+-  //
+-  // It used to be a static ±180 box, which worked only because the world was a
+-  // fixed 300m and everything in it existed from startup. Neither holds now: the
+-  // world is unbounded, and stretching one 1024 map over it would leave about a
+-  // texel per metre — shadows so coarse they read as dirt. A ±SHADOW_EXTENT box
+-  // tracking the camera gives a texel every ~0.2m, which is sharper than the
+-  // original, at the cost of only shadowing the camera's neighbourhood — where
+-  // shadows are legible anyway.
+   const s = SHADOW_EXTENT;
+   sun.shadow.camera.left = -s;
+   sun.shadow.camera.right = s;
+   sun.shadow.camera.top = s;
+   sun.shadow.camera.bottom = -s;
+-  // A grazing sun throws long shadows, so the slab has to be deep enough that
+-  // casters behind the box still reach into it; anything outside silently stops
+-  // casting. SHADOW_BACK_OFF is how far up the sun direction the light sits.
+   sun.shadow.camera.near = 1;
+   sun.shadow.camera.far = SHADOW_BACK_OFF * 2;
+   sun.shadow.bias = -0.0006;
+@@ -102,18 +102,14 @@ export function createWorld(scene) {
+   scene.add(sun);
+   scene.add(sun.target);
+ 
+-  // Direction from the target to the light, normalised once.
+   const sunDir = sunPos.clone().normalize();
++  const targetPreset = { ...ATMOSPHERES.golden };
++  let currentKey = 'golden';
++  let currentLanternGlow = ATMOSPHERES.golden.lanternGlow;
+ 
+-  // Re-aim the shadow box at a point in front of the camera. Looking ahead rather
+-  // than straight down means the box is spent on what is actually in frame, not
+-  // on the half of it behind the viewer.
+   const aim = new THREE.Vector3();
+   const fwd = new THREE.Vector3();
+ 
+-  // The dome is centred on the camera. It has to be bigger than the far plane to
+-  // stay behind everything, which means it cannot also be a fixed object in the
+-  // world — the camera would eventually walk out through its shell.
+   function followSky(camera) {
+     sky.position.set(camera.position.x, 0, camera.position.z);
+   }
+@@ -132,15 +128,57 @@ export function createWorld(scene) {
+     sun.shadow.camera.updateProjectionMatrix();
+   }
+ 
+-  return { sun, sunPos, hemi, PALETTE, focusShadow, followSky, SHADOW_EXTENT };
++  function setAtmosphere(key) {
++    if (!ATMOSPHERES[key]) return;
++    currentKey = key;
++    Object.assign(targetPreset, ATMOSPHERES[key]);
++  }
++
++  function updateAtmosphere(dt, renderer) {
++    const k = 1 - Math.exp(-dt * 2.8);
++    PALETTE.skyTop.lerp(targetPreset.skyTop, k);
++    PALETTE.skyMid.lerp(targetPreset.skyMid, k);
++    PALETTE.skyBottom.lerp(targetPreset.skyBottom, k);
++    PALETTE.sun.lerp(targetPreset.sun, k);
++    PALETTE.ambSky.lerp(targetPreset.ambSky, k);
++    PALETTE.ambGround.lerp(targetPreset.ambGround, k);
++
++    scene.background.copy(PALETTE.skyBottom);
++    sky.material.uniforms.top.value.copy(PALETTE.skyTop);
++    sky.material.uniforms.mid.value.copy(PALETTE.skyMid);
++    sky.material.uniforms.bottom.value.copy(PALETTE.skyBottom);
++
++    sun.color.copy(PALETTE.sun);
++    sun.intensity = THREE.MathUtils.lerp(sun.intensity, targetPreset.sunIntensity, k);
++    sunPos.lerp(targetPreset.sunPos, k);
++    sunDir.copy(sunPos).normalize();
++
++    hemi.color.copy(PALETTE.ambSky);
++    hemi.groundColor.copy(PALETTE.ambGround);
++    hemi.intensity = THREE.MathUtils.lerp(hemi.intensity, targetPreset.hemiIntensity, k);
++    ambient.intensity = THREE.MathUtils.lerp(ambient.intensity, targetPreset.ambientIntensity, k);
++    if (renderer) {
++      renderer.toneMappingExposure = THREE.MathUtils.lerp(renderer.toneMappingExposure, targetPreset.exposure, k);
++    }
++    currentLanternGlow = THREE.MathUtils.lerp(currentLanternGlow, targetPreset.lanternGlow, k);
++  }
++
++  return {
++    sun,
++    sunPos,
++    sunDir,
++    hemi,
++    PALETTE,
++    focusShadow,
++    followSky,
++    setAtmosphere,
++    updateAtmosphere,
++    getAtmosphereKey: () => currentKey,
++    getLanternGlow: () => currentLanternGlow,
++    SHADOW_EXTENT,
++  };
+ }
+ 
+-// Dome radius. It has to sit BEYOND the furthest content (the ground and far
+-// trees reach 700) and INSIDE the camera's far plane of 1600, or it is clipped
+-// away entirely and the flat scene.background shows through instead of the
+-// gradient — which reads as a washed-out sky and drags the whole frame's
+-// exposure with it. Since the dome follows the camera it never needs to be
+-// larger than that; only a world-fixed dome would have to span the map.
+ const SKY_RADIUS = 1200;
+ 
+ function makeSkyDome() {
+@@ -164,15 +202,9 @@ function makeSkyDome() {
+       varying float vH;
+       uniform vec3 top; uniform vec3 mid; uniform vec3 bottom;
+       void main() {
+-        // vH is -1..1; remap so 0 is the horizon and only the lowest slice of
+-        // the dome is gold. The old pow(vH*0.5+0.5, 0.7) put the halfway colour
+-        // ~40 degrees up, which smeared the warm band over most of the visible
+-        // sky and left nothing bright behind the treeline.
+         float h = clamp(vH, 0.0, 1.0);
+         vec3 c = mix(bottom, mid, smoothstep(0.0, 0.2, h));
+         c = mix(c, top, smoothstep(0.13, 0.55, h));
+-        // below the horizon the dome keeps the warm horizon colour, so the
+-        // ground plane never meets a band of blue at its far edge
+         c = mix(c, bottom, smoothstep(0.0, -0.05, vH));
+         gl_FragColor = vec4(c, 1.0);
+       }`,
+diff --git a/vite.config.js b/vite.config.js
+index 5f5fcdc..a26fd80 100644
+--- a/vite.config.js
++++ b/vite.config.js
+@@ -1,5 +1,6 @@
+ import { defineConfig } from 'vite';
+ 
+ export default defineConfig({
++  base: './',
+   server: { host: true, port: 5173 }
+ });
