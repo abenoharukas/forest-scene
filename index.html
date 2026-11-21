@@ -1,12 +1,43 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cozy Forest · Three.js</title>
+    <title>Botanical Stream Garden · Three.js</title>
   </head>
   <body>
-    <div id="info">林间 · Cozy Forest<br />鼠标拖拽环顾 · 滚轮缩放 · WASD / 方向键移动 · Shift 加速</div>
+    <header class="brand-badge" aria-label="Scene Title">
+      <div class="bezel-outer">
+        <div class="bezel-inner brand-inner">
+          <span class="eyebrow">Three.js · Realistic Water</span>
+          <h1 class="title">Botanical Stream Garden</h1>
+          <p class="hint">Drag to orbit · Scroll to zoom · WASD to walk · Shift to sprint</p>
+        </div>
+      </div>
+    </header>
+
+    <nav class="hud-dock" aria-label="Garden Controls">
+      <div class="bezel-outer dock-outer">
+        <div class="bezel-inner dock-inner">
+          <div class="control-group" role="group" aria-label="Camera Viewpoints">
+            <span class="group-label">View</span>
+            <button class="pill-btn is-active" data-view="lakeside">Lakeside</button>
+            <button class="pill-btn" data-view="bridge">Bridge</button>
+            <button class="pill-btn" data-view="cascade">Cascade</button>
+            <button class="pill-btn" data-view="canopy">Canopy</button>
+          </div>
+          <div class="divider" aria-hidden="true"></div>
+          <div class="control-group" role="group" aria-label="Atmosphere">
+            <span class="group-label">Light</span>
+            <button class="pill-btn is-active" data-atmo="golden">Golden</button>
+            <button class="pill-btn" data-atmo="morning">Morning</button>
+            <button class="pill-btn" data-atmo="noon">Noon</button>
+            <button class="pill-btn" data-atmo="twilight">Twilight</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
